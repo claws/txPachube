@@ -1,0 +1,18 @@
+txPachube
+=========
+
+txPachube is a Python wrapper of the v2 Pachube API, based on the Twisted networking framework.
+Use it to integrate non blocking access to the Pachube API into your Python Twisted application.
+
+
+Software Dependencies
+---------------------
+
+ * Python
+ * Twisted
+  * zope.interface
+  * pyOpenSSL (used by Twisted for https - in our case for secure access to Pachube)
+
+
+
+
