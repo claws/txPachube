@@ -1,7 +1,7 @@
 txPachube
 =========
 
-txPachube is a Python wrapper of the v2 Pachube API, based on the Twisted networking framework.
+txPachube is a Python wrapper of the v2 Pachube `API <http://api.pachube.com/v2/>`_, based on the Twisted networking framework.
 Use it to integrate non blocking access to the Pachube API into your Python Twisted application.
 
 **txPachube is currently under development**
@@ -9,10 +9,10 @@ Use it to integrate non blocking access to the Pachube API into your Python Twis
 Software Dependencies
 ---------------------
 
-- Python
-- Twisted
- - zope.interface
- - pyOpenSSL (used by Twisted for https - in our case for secure access to Pachube)
+* Python
+* Twisted
+  - zope.interface
+  - pyOpenSSL (used by Twisted for https - in our case for secure access to Pachube)
 
 
 Install
@@ -58,8 +58,8 @@ List Pachube feeds visible to the API key supplied::
 Create a new feed::
 
     # This example demonstrates the ability to create new feeds. It also
-    # shows an API key being passed to the update_feed method because no
-    # default key was passed to the Pachube object initialiser.
+    # shows an API key being passed to the update_feed method directly 
+    # because no default key was passed to the Pachube object initialiser.
    
     from twisted.internet import reactor
     import txPachube
