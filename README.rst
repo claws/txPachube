@@ -33,7 +33,7 @@ These examples require you to have a Pachube account as an appropriately configu
 List Pachube feeds visible to the API key supplied::
 
     # This example demonstrates a request for feeds visible to the
-    # supplied API key. It initialises the Pachube object with a
+    # supplied API key. It initialises the Client object with a
     # default API key that will be used if no apiKey argument is
     # passed to the various API methods.
 
@@ -61,7 +61,7 @@ Create a new feed::
 
     # This example demonstrates the ability to create new feeds. It also
     # shows an API key being passed to the update_feed method directly 
-    # because no default key was passed to the Pachube object initialiser.
+    # because no default key was passed to the Client object initialiser.
    
     from twisted.internet import reactor
     import txPachube
@@ -93,7 +93,7 @@ Create a new feed::
 
 Update a feed::
   
-    # This example show how a feed can be updated. The Pachube object
+    # This example show how a feed can be updated. The Client object
     # has been initialised with an API key and a feed id so they don't
     # need to be passed to the update_feed method. The format argument
     # is defaulted to json so it must be passed as this example is using
@@ -147,10 +147,6 @@ Update a feed::
         reactor.callWhenRunning(update_feed, pachubeClient, txPachube.DataFormats.XML, feed_data)
         reactor.run()
 
-
-Stitch it all together::
-
-    
 
 
 Todo
