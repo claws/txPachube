@@ -4,7 +4,7 @@ txPachube
 txPachube is a Python wrapper of the v2 Pachube `API <http://api.pachube.com/v2/>`_, based on the Twisted networking framework.
 Use it to integrate non blocking access to the Pachube API into your Python Twisted application.
 
-It currently contains API functions for all API calls (Feeds, Datastreams, Datapoints, Triggers, Users, Keys).
+It implements the full Pachube API - Feeds, Datastreams, Datapoints, Triggers, Users, Keys.
 
 **txPachube is currently under development**
 
@@ -13,6 +13,7 @@ Software Dependencies
 
 * Python
 * Twisted
+
   - zope.interface
   - pyOpenSSL (used by Twisted for https - in our case for secure access to Pachube)
 
@@ -20,7 +21,9 @@ Software Dependencies
 Install
 =======
 
-1. Install txPachube module
+1. Download txPachube archive.
+
+2. Install txPachube module into your Python distribution.
     python setup.py install
 
 
@@ -49,7 +52,7 @@ List Pachube feeds visible to the API key supplied::
         pachubeClient = txPachube.Client(api_key=API_KEY)
 
         d = pachubeClient.list_feeds()
-        d.addCallback(lambda feed_list: print "Received feed list content:\n%s\n" % feed_list )
+        d.addCallback(lambda feed_list: print "Received feed list content:\n%s\n" % feed_list)
         d.addErrback(lambda reason: print "Error listing visible feeds: %s" % str(reason))
         d.addCallback(reactor.stop)
 
@@ -137,9 +140,39 @@ Update a feed::
 
         pachubeClient = txPachube.Client(api_key=API_KEY, feed_id=FEED_ID)
 
-        d = pachubeClient.update_feed(format=txPachube.DataFormats.XML, data=xml_data)
+        d = pachubeClient.update_feed(format=txPachube.DataFormats.XML, data=feed_data)
         d.addCallback(lambda result: print "Feed updated successfully:\n%s\n" % result)
         d.addErrback(lambda reason: print "Error updating feed: %s" % str(reason))
+        d.addCallback(reactor.stop)
+
+        reactor.run()
+
+
+Read a feed:
+    
+    # This example demonstrates a request for feed data and uses
+    # additonal parameters to restrict the datastreams returned.
+    # It initialises the Client object with a default API key and
+    # feed id so they do not need to be passed to the read_feed
+    # method.
+
+    from twisted.internet import reactor
+    import txPachube
+
+    # Paste your Pachube API key here
+    API_KEY = ""
+
+    # Paste the feed identifier you wish to be DELETED here
+    FEED_ID = ""
+
+
+    if __name__ == "__main__":
+        
+        pachubeClient = txPachube.Client(api_key=API_KEY, feed_id=FEED_ID)
+
+        d = pachubeClient.read_feed(parameters={'datastreams' : 'temperature'})
+        d.addCallback(lambda feed_dict: print "Received feed content:\n%s\n" % feed_dict)
+        d.addErrback(lambda reason: print "Error retrieving feed data: %s" % str(reason))
         d.addCallback(reactor.stop)
 
         reactor.run()
@@ -152,13 +185,13 @@ Delete a feed::
  
     from twisted.internet import reactor
     import txPachube
-    import json
 
     # Paste your Pachube API key here
     API_KEY = ""
 
     # Paste the feed identifier you wish to be DELETED here
     FEED_ID = ""
+
 
     if __name__ == "__main__":
 
