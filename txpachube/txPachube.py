@@ -448,20 +448,20 @@ class Client(object):
     #
     
     
-    def list_feeds(self, apiKey=None, format=DataFormats.JSON, parameters=None):
+    def list_feeds(self, api_key=None, format=DataFormats.JSON, parameters=None):
         """ 
         Returns a paged list of Pachube's feeds that are viewable by 
         the authenticated account with a default page size of 50 feeds.
         
-        @param apiKey: An api key with authorization settings allowing this action to be performed
-        @type apiKey: string
+        @param api_key: An api key with authorization settings allowing this action to be performed
+        @type api_key: string
         @param format: The format to request the results in [json|xml|csv]
         @type format: string
         @param parameters: Additional parameters to configure the search query.
         @type parameters: dict
         
         @return: A deferred that returns the response body which is a paged
-                 list of feeds (default 50 per page) viewable by the apiKey 
+                 list of feeds (default 50 per page) viewable by the api_key 
                  provided.
         @rtype: string (in the format specified by the format argument)
         
@@ -537,7 +537,7 @@ class Client(object):
             miles or kms (default).
             distance_units=miles        
 
-        If apiKey argument is not set when calling this method then the
+        If api_key argument is not set when calling this method then the
         value set during this object's instantiation (ie. in __init__) is used.        
         """
         
@@ -547,10 +547,10 @@ class Client(object):
             params = urllib.urlencode(parameters)
             url = "%s?%s" % (url, params)
         
-        if apiKey is None:
-            apiKey = self.api_key
+        if api_key is None:
+            api_key = self.api_key
             
-        headers = {'X-PachubeApiKey': apiKey}
+        headers = {'X-PachubeApiKey': api_key}
         
         d = self._get(url, headers)
         d.addCallback(self._getResponseBody)
@@ -559,13 +559,13 @@ class Client(object):
         return d
         
         
-    def create_feed(self, apiKey=None, format=DataFormats.JSON, data=None):
+    def create_feed(self, api_key=None, format=DataFormats.JSON, data=None):
         """ 
         Returns a paged list of Pachube's feeds that are viewable by 
         the authenticated account with a default page size of 50 feeds.
         
-        @param apiKey: An api key with authorization settings allowing this action to be performed
-        @type apiKey: string
+        @param api_key: An api key with authorization settings allowing this action to be performed
+        @type api_key: string
         @param format: The format to request the results in [json|xml|csv]
         @type format: string
         @param data: A string detailing the environment to be created.
@@ -574,7 +574,7 @@ class Client(object):
         @return: A deferred that returns the feed_id of the newly created feed. 
         @rtype: string
 
-        If apiKey argument is not set when calling this method then the
+        If api_key argument is not set when calling this method then the
         value set during this object's instantiation (ie. in __init__) is used.
         """
         
@@ -591,10 +591,10 @@ class Client(object):
         
         url = "%s/feeds.%s" % (self.api_url, format)
         
-        if apiKey is None:
-            apiKey = self.api_key
+        if api_key is None:
+            api_key = self.api_key
             
-        headers = {'X-PachubeApiKey': apiKey}
+        headers = {'X-PachubeApiKey': api_key}
 
         d = self._post(url, headers, data)
         d.addCallback(self._getLocationFromHeader)
@@ -602,12 +602,12 @@ class Client(object):
         return d
     
     
-    def read_feed(self, apiKey=None, feed_id=None, format=DataFormats.JSON, parameters=None):
+    def read_feed(self, api_key=None, feed_id=None, format=DataFormats.JSON, parameters=None):
         """ 
         Returns the most recent datastreams for environment [feed_id]
         
-        @param apiKey: An api key with authorization settings allowing this action to be performed
-        @type apiKey: string
+        @param api_key: An api key with authorization settings allowing this action to be performed
+        @type api_key: string
         @param feed_id: The feed identifier
         @type feed_id: string
         @param format: The format to request the results in [json|xml|csv]
@@ -617,7 +617,7 @@ class Client(object):
         
         @return: A deferred that returns the response body which contains
                  the most recent datastreams for environment [feed_id] 
-                 viewable by the apiKey provided.
+                 viewable by the api_key provided.
         @rtype: string (in the format specified by the format argument)
         
         
@@ -702,7 +702,7 @@ class Client(object):
                 43200    One snapshot per twelve hours    1 year
                 86400    One snapshot per day             1 year
                 
-        If apiKey or feed_id arguments are not set when calling this method then the
+        If api_key or feed_id arguments are not set when calling this method then the
         values set during this object's instantiation (ie. in __init__) are used.
         """
 
@@ -715,10 +715,10 @@ class Client(object):
             params = urllib.urlencode(parameters)
             url = "%s?%s" % (url, params)
         
-        if apiKey is None:
-            apiKey = self.api_key
+        if api_key is None:
+            api_key = self.api_key
             
-        headers = {'X-PachubeApiKey': apiKey}
+        headers = {'X-PachubeApiKey': api_key}
         
         d = self._get(url, headers)
         d.addCallback(self._getResponseBody)
@@ -727,15 +727,15 @@ class Client(object):
         return d        
         
         
-    def update_feed(self, apiKey=None, feed_id=None, format=DataFormats.JSON, data=None):
+    def update_feed(self, api_key=None, feed_id=None, format=DataFormats.JSON, data=None):
         """
         Updates [environment ID]'s environment and datastreams. If successful, the 
         current datastream values are stored and any changes in environment metadata
         overwrite previous values. Pachube stores a server-side timestamp in the 
         "updated" attribute and sets the feed to "live" if it wasn't before. 
 
-        @param apiKey: An api key with authorization settings allowing this action to be performed
-        @type apiKey: string
+        @param api_key: An api key with authorization settings allowing this action to be performed
+        @type api_key: string
         @param feed_id: The feed identifier
         @type feed_id: string
         @param format: The format to request the results in [json|xml|csv]
@@ -747,7 +747,7 @@ class Client(object):
                  the response header data. 
         @rtype: boolean
 
-        If apiKey or feed_id arguments are not set when calling this method then the
+        If api_key or feed_id arguments are not set when calling this method then the
         values set during this object's instantiation (ie. in __init__) are used.                
         """
         if feed_id is None:
@@ -755,24 +755,24 @@ class Client(object):
                     
         url = "%s/feeds/%s.%s" % (self.api_url, feed_id, format)
         
-        if apiKey is None:
-            apiKey = self.api_key
+        if api_key is None:
+            api_key = self.api_key
             
-        headers = {'X-PachubeApiKey': apiKey}
+        headers = {'X-PachubeApiKey': api_key}
 
         d = self._put(url, headers, data)
         d.addCallback(self._getResponseCodeStatusFromHeader)
         return d
 
 
-    def delete_feed(self, apiKey=None, feed_id=None):
+    def delete_feed(self, api_key=None, feed_id=None):
         """
         The DELETE request does not require a format to be used. A request made to 
         this URL will delete the object referred to by the ID. 
         WARNING: This is final and cannot be undone.
 
-        @param apiKey: An api key with authorization settings allowing this action to be performed
-        @type apiKey: string
+        @param api_key: An api key with authorization settings allowing this action to be performed
+        @type api_key: string
         @param feed_id: The feed identifier
         @type feed_id: string
         
@@ -780,7 +780,7 @@ class Client(object):
                  the response header data. 
         @rtype: boolean
 
-        If apiKey or feed_id arguments are not set when calling this method then the
+        If api_key or feed_id arguments are not set when calling this method then the
         values set during this object's instantiation (ie. in __init__) are used.      
         """
         if feed_id is None:
@@ -788,10 +788,10 @@ class Client(object):
                     
         url = "%s/feeds/%s" % (self.api_url, feed_id)
         
-        if apiKey is None:
-            apiKey = self.api_key
+        if api_key is None:
+            api_key = self.api_key
             
-        headers = {'X-PachubeApiKey': apiKey,
+        headers = {'X-PachubeApiKey': api_key,
                    'Content-Type' : self._getContentType(format)}
 
         d = self._delete(url, headers)
@@ -803,13 +803,13 @@ class Client(object):
     # Datastreams
     #
     
-    def create_datastreams(self, apiKey=None, feed_id=None, format=DataFormats.JSON, data=None):
+    def create_datastreams(self, api_key=None, feed_id=None, format=DataFormats.JSON, data=None):
         """
         Creates a new datastream in environment [feed ID]. The body of the request 
         should contain a JSON, XML or CSV representation of the datastream to be created.
         
-        @param apiKey: An api key with authorization settings allowing this action to be performed
-        @type apiKey: string
+        @param api_key: An api key with authorization settings allowing this action to be performed
+        @type api_key: string
         @param feed_id: The feed identifier
         @type feed_id: string
         @param format: The format to request the results in [json|xml|csv]
@@ -821,7 +821,7 @@ class Client(object):
                  the response header data. 
         @rtype: boolean
         
-        If apiKey or feed_id arguments are not set when calling this method then the
+        If api_key or feed_id arguments are not set when calling this method then the
         values set during this object's instantiation (ie. in __init__) are used.
         """       
         if feed_id is None:
@@ -829,22 +829,22 @@ class Client(object):
                     
         url = "%s/feeds/%s/datastreams.%s" % (self.api_url, feed_id, format)
         
-        if apiKey is None:
-            apiKey = self.api_key
+        if api_key is None:
+            api_key = self.api_key
             
-        headers = {'X-PachubeApiKey': apiKey}
+        headers = {'X-PachubeApiKey': api_key}
 
         d = self._post(url, headers, data)
         d.addCallback(self._getResponseCodeStatusFromHeader)
         return d
            
         
-    def read_datastreams(self, apiKey=None, feed_id=None, datastream_id=None, format=DataFormats.JSON, parameters=None): 
+    def read_datastreams(self, api_key=None, feed_id=None, datastream_id=None, format=DataFormats.JSON, parameters=None): 
         """
         Read the requested datastream.
 
-        @param apiKey: An api key with authorization settings allowing this action to be performed
-        @type apiKey: string
+        @param api_key: An api key with authorization settings allowing this action to be performed
+        @type api_key: string
         @param feed_id: The feed identifier
         @type feed_id: string
         @param datastream_id: A datastream identifier
@@ -947,7 +947,7 @@ class Client(object):
         b    show axis labels        true / false
         g    show detailed grid      true / false
         
-        If apiKey or feed_id arguments are not set when calling this method then the
+        If api_key or feed_id arguments are not set when calling this method then the
         values set during this object's instantiation (ie. in __init__) are used.
         """
         if feed_id is None:
@@ -959,10 +959,10 @@ class Client(object):
             params = urllib.urlencode(parameters)
             url = "%s?%s" % (url, params)
         
-        if apiKey is None:
-            apiKey = self.api_key
+        if api_key is None:
+            api_key = self.api_key
             
-        headers = {'X-PachubeApiKey': apiKey}
+        headers = {'X-PachubeApiKey': api_key}
         
         d = self._get(url, headers)
         d.addCallback(self._getResponseBody)
@@ -971,12 +971,12 @@ class Client(object):
         return d
          
         
-    def update_datastream(self, apiKey=None, feed_id=None, datastream_id=None, format=DataFormats.JSON, data=None):
+    def update_datastream(self, api_key=None, feed_id=None, datastream_id=None, format=DataFormats.JSON, data=None):
         """
         Update a single datastream
 
-        @param apiKey: An api key with authorization settings allowing this action to be performed
-        @type apiKey: string
+        @param api_key: An api key with authorization settings allowing this action to be performed
+        @type api_key: string
         @param feed_id: The feed identifier
         @type feed_id: string
         @param datastream_id: A datastream identifier
@@ -990,7 +990,7 @@ class Client(object):
                  the response header data. 
         @rtype: boolean
         
-        If apiKey or feed_id arguments are not set when calling this method then the
+        If api_key or feed_id arguments are not set when calling this method then the
         values set during this object's instantiation (ie. in __init__) are used.        
         """
         if feed_id is None:
@@ -998,24 +998,24 @@ class Client(object):
                     
         url = "%s/feeds/%s/datastreams/%s.%s" % (self.api_url, feed_id, datastream_id, format)
         
-        if apiKey is None:
-            apiKey = self.api_key
+        if api_key is None:
+            api_key = self.api_key
             
-        headers = {'X-PachubeApiKey': apiKey}
+        headers = {'X-PachubeApiKey': api_key}
 
         d = self._put(url, headers, data)
         d.addCallback(self._getResponseCodeStatusFromHeader)
         return d        
         
         
-    def delete_datastream(self, apiKey=None, feed_id=None, datastream_id=None): 
+    def delete_datastream(self, api_key=None, feed_id=None, datastream_id=None): 
         """
         The DELETE request does not require a format to be used. A request made to 
         this URL will delete the object referred to by the ID. 
         WARNING: This is final and cannot be undone.
 
-        @param apiKey: An api key with authorization settings allowing this action to be performed
-        @type apiKey: string
+        @param api_key: An api key with authorization settings allowing this action to be performed
+        @type api_key: string
         @param feed_id: The feed identifier
         @type feed_id: string
         @param datastream_id: A datastream identifier
@@ -1025,7 +1025,7 @@ class Client(object):
                  the response header data. 
         @rtype: boolean
 
-        If apiKey or feed_id arguments are not set when calling this method then the
+        If api_key or feed_id arguments are not set when calling this method then the
         values set during this object's instantiation (ie. in __init__) are used.       
         """
         if feed_id is None:
@@ -1033,10 +1033,10 @@ class Client(object):
                     
         url = "%s/feeds/%s/datastreams/%s" % (self.api_url, feed_id, datastream_id)
         
-        if apiKey is None:
-            apiKey = self.api_key
+        if api_key is None:
+            api_key = self.api_key
             
-        headers = {'X-PachubeApiKey': apiKey}
+        headers = {'X-PachubeApiKey': api_key}
 
         d = self._delete(url, headers)
         d.addCallback(self._getResponseCodeStatusFromHeader)
@@ -1052,7 +1052,7 @@ class Client(object):
     
     
     
-    def create_datapoints(self, apiKey=None, feed_id=None, datastream_id=None, format=DataFormats.JSON, data=None):
+    def create_datapoints(self, api_key=None, feed_id=None, datastream_id=None, format=DataFormats.JSON, data=None):
         """
         Creates new datapoints for datastream. The body of the request 
         should contain a JSON, XML or CSV representation of the datastream to be created.
@@ -1069,8 +1069,8 @@ class Client(object):
         Attempting to send more than that will result in an error, and in that case none
         of your datapoints will be stored.
         
-        @param apiKey: An api key with authorization settings allowing this action to be performed
-        @type apiKey: string
+        @param api_key: An api key with authorization settings allowing this action to be performed
+        @type api_key: string
         @param feed_id: The feed identifier
         @type feed_id: string
         @param datastream_id: A datastream identifier
@@ -1084,7 +1084,7 @@ class Client(object):
                  the response header data. 
         @rtype: boolean
         
-        If apiKey or feed_id arguments are not set when calling this method then the
+        If api_key or feed_id arguments are not set when calling this method then the
         values set during this object's instantiation (ie. in __init__) are used.
         """       
         if feed_id is None:
@@ -1092,22 +1092,22 @@ class Client(object):
                     
         url = "%s/feeds/%s/datastreams/%s/datapoints.%s" % (self.api_url, feed_id, datastream_id, format)
         
-        if apiKey is None:
-            apiKey = self.api_key
+        if api_key is None:
+            api_key = self.api_key
             
-        headers = {'X-PachubeApiKey': apiKey}
+        headers = {'X-PachubeApiKey': api_key}
 
         d = self._post(url, headers, data)
         d.addCallback(self._getResponseCodeStatusFromHeader)
         return d
     
     
-    def read_datapoint(self, apiKey=None, feed_id=None, datastream_id=None, format=DataFormats.JSON, timestamp=None): 
+    def read_datapoint(self, api_key=None, feed_id=None, datastream_id=None, format=DataFormats.JSON, timestamp=None): 
         """
         Read a specific datapoint from the specified timestamp.
 
-        @param apiKey: An api key with authorization settings allowing this action to be performed
-        @type apiKey: string
+        @param api_key: An api key with authorization settings allowing this action to be performed
+        @type api_key: string
         @param feed_id: The feed identifier
         @type feed_id: string
         @param datastream_id: A datastream identifier
@@ -1121,7 +1121,7 @@ class Client(object):
                  details at the specified timestamp
         @rtype: string (in the format specified by the format argument)
         
-        If apiKey or feed_id arguments are not set when calling this method then the
+        If api_key or feed_id arguments are not set when calling this method then the
         values set during this object's instantiation (ie. in __init__) are used.
         """
         if feed_id is None:
@@ -1130,10 +1130,10 @@ class Client(object):
         url = "%s/feeds/%s/datastreams/%s/datapoints/%s.%s" % (self.api_url, feed_id, datastream_id, timestamp, format)
 
         
-        if apiKey is None:
-            apiKey = self.api_key
+        if api_key is None:
+            api_key = self.api_key
             
-        headers = {'X-PachubeApiKey': apiKey}
+        headers = {'X-PachubeApiKey': api_key}
         
         d = self._get(url, headers)
         d.addCallback(self._getResponseBody)
@@ -1142,12 +1142,12 @@ class Client(object):
         return d
     
     
-    def update_datapoint(self, apiKey=None, feed_id=None, datastream_id=None, format=DataFormats.JSON, timestamp=None, data=None):
+    def update_datapoint(self, api_key=None, feed_id=None, datastream_id=None, format=DataFormats.JSON, timestamp=None, data=None):
         """
         Modify the value of a datapoint at the specified timestamp
 
-        @param apiKey: An api key with authorization settings allowing this action to be performed
-        @type apiKey: string
+        @param api_key: An api key with authorization settings allowing this action to be performed
+        @type api_key: string
         @param feed_id: The feed identifier
         @type feed_id: string
         @param datastream_id: A datastream identifier
@@ -1163,7 +1163,7 @@ class Client(object):
                  details at the specified timestamp
         @rtype: string (in the format specified by the format argument)
         
-        If apiKey or feed_id arguments are not set when calling this method then the
+        If api_key or feed_id arguments are not set when calling this method then the
         values set during this object's instantiation (ie. in __init__) are used.        
         """
         if feed_id is None:
@@ -1171,23 +1171,23 @@ class Client(object):
                     
         url = "%s/feeds/%s/datastreams/%s/datapoints/%s.%s" % (self.api_url, feed_id, datastream_id, timestamp, format)
         
-        if apiKey is None:
-            apiKey = self.api_key
+        if api_key is None:
+            api_key = self.api_key
             
-        headers = {'X-PachubeApiKey': apiKey}
+        headers = {'X-PachubeApiKey': api_key}
 
         d = self._put(url, headers, data)
         d.addCallback(self._getResponseCodeStatusFromHeader)
         return d        
     
 
-    def delete_datapoint(self, apiKey=None, feed_id=None, datastream_id=None, timestamp=None):
+    def delete_datapoint(self, api_key=None, feed_id=None, datastream_id=None, timestamp=None):
         """
         Delete a single datapoint at the specified timestamp.
         This request does not require a format to be used.
         
-        @param apiKey: An api key with authorization settings allowing this action to be performed
-        @type apiKey: string
+        @param api_key: An api key with authorization settings allowing this action to be performed
+        @type api_key: string
         @param feed_id: The feed identifier
         @type feed_id: string
         @param datastream_id: A datastream identifier
@@ -1199,7 +1199,7 @@ class Client(object):
                  the response header data. 
         @rtype: boolean
         
-        If apiKey or feed_id arguments are not set when calling this method then the
+        If api_key or feed_id arguments are not set when calling this method then the
         values set during this object's instantiation (ie. in __init__) are used.        
         """
         if feed_id is None:
@@ -1207,17 +1207,17 @@ class Client(object):
                     
         url = "%s/feeds/%s/datastreams/%s/datapoints/%s" % (self.api_url, feed_id, datastream_id, timestamp)
         
-        if apiKey is None:
-            apiKey = self.api_key
+        if api_key is None:
+            api_key = self.api_key
             
-        headers = {'X-PachubeApiKey': apiKey}
+        headers = {'X-PachubeApiKey': api_key}
 
         d = self._delete(url, headers)
         d.addCallback(self._getResponseCodeStatusFromHeader)
         return d
     
         
-    def delete_datapoints(self, apiKey=None, feed_id=None, datastream_id=None, parameters=None): 
+    def delete_datapoints(self, api_key=None, feed_id=None, datastream_id=None, parameters=None): 
         """
         Remove a range of datapoints for this datastream.
         This request does not require a format to be used
@@ -1254,8 +1254,8 @@ class Client(object):
             http://api.pachube.com/v2/feeds/1977/datastreams?start=2010-05-20T11:01:46.000000Z&duration=3days
             
                         
-        @param apiKey: An api key with authorization settings allowing this action to be performed
-        @type apiKey: string
+        @param api_key: An api key with authorization settings allowing this action to be performed
+        @type api_key: string
         @param feed_id: The feed identifier
         @type feed_id: string
         @param datastream_id: A datastream identifier
@@ -1267,7 +1267,7 @@ class Client(object):
                  the response header data. 
         @rtype: boolean
         
-        If apiKey or feed_id arguments are not set when calling this method then the
+        If api_key or feed_id arguments are not set when calling this method then the
         values set during this object's instantiation (ie. in __init__) are used.
         """
         if feed_id is None:
@@ -1279,10 +1279,10 @@ class Client(object):
             params = urllib.urlencode(parameters)
             url = "%s?%s" % (url, params)
                     
-        if apiKey is None:
-            apiKey = self.api_key
+        if api_key is None:
+            api_key = self.api_key
             
-        headers = {'X-PachubeApiKey': apiKey}
+        headers = {'X-PachubeApiKey': api_key}
 
         d = self._delete(url, headers)
         d.addCallback(self._getResponseCodeStatusFromHeader)
@@ -1294,12 +1294,12 @@ class Client(object):
     #
     
     
-    def list_triggers(self, apiKey=None, format=DataFormats.JSON):
+    def list_triggers(self, api_key=None, format=DataFormats.JSON):
         """ 
         Retrieve a list of all triggers for the authenticated account
 
-        @param apiKey: An api key with authorization settings allowing this action to be performed
-        @type apiKey: string
+        @param api_key: An api key with authorization settings allowing this action to be performed
+        @type api_key: string
         @param format: The format to request the results in [json|xml]
         @type format: string
         
@@ -1307,15 +1307,15 @@ class Client(object):
                  the response header data. 
         @rtype: boolean
         
-        If apiKey argument is not set when calling this method then the default value
+        If api_key argument is not set when calling this method then the default value
         set during this object's instantiation (ie. in __init__) is used.
         """     
         url = "%s/triggers.%s" % (self.api_url, format)
         
-        if apiKey is None:
-            apiKey = self.api_key
+        if api_key is None:
+            api_key = self.api_key
             
-        headers = {'X-PachubeApiKey': apiKey}
+        headers = {'X-PachubeApiKey': api_key}
 
         d = self._get(url, headers)
         d.addCallback(self._getResponseBody)
@@ -1324,12 +1324,12 @@ class Client(object):
         return d        
             
         
-    def create_trigger(self, apiKey=None, format=DataFormats.JSON, data=None):
+    def create_trigger(self, api_key=None, format=DataFormats.JSON, data=None):
         """
         Create a trigger
 
-        @param apiKey: An api key with authorization settings allowing this action to be performed
-        @type apiKey: string
+        @param api_key: An api key with authorization settings allowing this action to be performed
+        @type api_key: string
         @param format: The format to request the results in [json|xml|csv|png]
         @type format: string
         @param data: Trigger definition in the appropriate format.
@@ -1338,7 +1338,7 @@ class Client(object):
         @return: A deferred that returns the trigger_id of the newly created trigger. 
         @rtype: string
         
-        If apiKey argument is not set when calling this method then the default value
+        If api_key argument is not set when calling this method then the default value
         set during this object's instantiation (ie. in __init__) is used.        
         
         """
@@ -1351,10 +1351,10 @@ class Client(object):
                     
         url = "%s/triggers.%s" % (self.api_url, format)
         
-        if apiKey is None:
-            apiKey = self.api_key
+        if api_key is None:
+            api_key = self.api_key
             
-        headers = {'X-PachubeApiKey': apiKey}
+        headers = {'X-PachubeApiKey': api_key}
                
         d = self._post(url, headers, data)
         d.addCallback(self._getLocationFromHeader)
@@ -1362,12 +1362,12 @@ class Client(object):
         return d        
         
         
-    def read_trigger(self, apiKey=None, trigger_id=None, format=DataFormats.JSON):
+    def read_trigger(self, api_key=None, trigger_id=None, format=DataFormats.JSON):
         """ 
         Returns a representation of a trigger 
         
-        @param apiKey: An api key with authorization settings allowing this action to be performed
-        @type apiKey: string
+        @param api_key: An api key with authorization settings allowing this action to be performed
+        @type api_key: string
         @param trigger_id: The trigger identifier
         @type trigger_id: string
         @param format: The format to request the results in [json|xml]
@@ -1380,15 +1380,15 @@ class Client(object):
                  by the format argument.
         @rtype: string
         
-        If apiKey argument is not set when calling this method then the default value
+        If api_key argument is not set when calling this method then the default value
         set during this object's instantiation (ie. in __init__) is used.
         """      
         url = "%s/triggers/%s.%s" % (self.api_url, trigger_id, format)
         
-        if apiKey is None:
-            apiKey = self.api_key
+        if api_key is None:
+            api_key = self.api_key
             
-        headers = {'X-PachubeApiKey': apiKey}
+        headers = {'X-PachubeApiKey': api_key}
         
         d = self._get(url, headers)
         d.addCallback(self._getResponseBody)
@@ -1397,12 +1397,12 @@ class Client(object):
         return d        
         
         
-    def update_trigger(self, apiKey=None, trigger_id=None, format=DataFormats.JSON, data=None):
+    def update_trigger(self, api_key=None, trigger_id=None, format=DataFormats.JSON, data=None):
         """
         Updates an existing trigger object. 
 
-        @param apiKey: An api key with authorization settings allowing this action to be performed
-        @type apiKey: string
+        @param api_key: An api key with authorization settings allowing this action to be performed
+        @type api_key: string
         @param trigger_id: The trigger identifier
         @type trigger_id: string
         @param format: The format to request the results in [json|xml]
@@ -1414,28 +1414,28 @@ class Client(object):
                  the response header data. 
         @rtype: boolean
 
-        If apiKey argument is not set when calling this method then the default value
+        If api_key argument is not set when calling this method then the default value
         set during this object's instantiation (ie. in __init__) is used.                
         """
         url = "%s/triggers/%s.%s" % (self.api_url, trigger_id, format)
         
-        if apiKey is None:
-            apiKey = self.api_key
+        if api_key is None:
+            api_key = self.api_key
             
-        headers = {'X-PachubeApiKey': apiKey}
+        headers = {'X-PachubeApiKey': api_key}
 
         d = self._put(url, headers, data)
         d.addCallback(self._getResponseCodeStatusFromHeader)
         return d
     
     
-    def delete_trigger(self, apiKey=None, trigger_id=None):
+    def delete_trigger(self, api_key=None, trigger_id=None):
         """
         Delete a trigger.
         WARNING: This is final and cannot be undone.
 
-        @param apiKey: An api key with authorization settings allowing this action to be performed
-        @type apiKey: string
+        @param api_key: An api key with authorization settings allowing this action to be performed
+        @type api_key: string
         @param trigger_id: The trigger identifier
         @type trigger_id: string
         
@@ -1443,17 +1443,17 @@ class Client(object):
                  the response header data. 
         @rtype: boolean
 
-        If apiKey argument is not set when calling this method then the default value
+        If api_key argument is not set when calling this method then the default value
         set during this object's instantiation (ie. in __init__) is used.      
         """
 
                     
         url = "%s/triggers/%s.%s" % (self.api_url, trigger_id, format)
         
-        if apiKey is None:
-            apiKey = self.api_key
+        if api_key is None:
+            api_key = self.api_key
             
-        headers = {'X-PachubeApiKey': apiKey}
+        headers = {'X-PachubeApiKey': api_key}
 
         d = self._delete(url, headers)
         d.addCallback(self._getResponseCodeStatusFromHeader)
@@ -1465,12 +1465,12 @@ class Client(object):
     #
     
     
-    def list_users(self, apiKey=None, format=DataFormats.JSON):
+    def list_users(self, api_key=None, format=DataFormats.JSON):
         """ 
         Retrieve a list of all users for the authenticated account
 
-        @param apiKey: An api key with authorization settings allowing this action to be performed
-        @type apiKey: string
+        @param api_key: An api key with authorization settings allowing this action to be performed
+        @type api_key: string
         @param format: The format to request the results in [json|xml]
         @type format: string
         
@@ -1478,15 +1478,15 @@ class Client(object):
                  by the format argument. 
         @rtype: boolean
         
-        If apiKey argument is not set when calling this method then the default value
+        If api_key argument is not set when calling this method then the default value
         set during this object's instantiation (ie. in __init__) is used.
         """     
         url = "%s/users.%s" % (self.api_url, format)
         
-        if apiKey is None:
-            apiKey = self.api_key
+        if api_key is None:
+            api_key = self.api_key
             
-        headers = {'X-PachubeApiKey': apiKey}
+        headers = {'X-PachubeApiKey': api_key}
 
         d = self._get(url, headers)
         d.addCallback(self._getResponseBody)
@@ -1495,12 +1495,12 @@ class Client(object):
         return d 
     
     
-    def create_user(self, apiKey=None, format=DataFormats.JSON, data=None):
+    def create_user(self, api_key=None, format=DataFormats.JSON, data=None):
         """
         Create a user
 
-        @param apiKey: An api key with authorization settings allowing this action to be performed
-        @type apiKey: string
+        @param api_key: An api key with authorization settings allowing this action to be performed
+        @type api_key: string
         @param format: The format to request the results in [json|xml|csv|png]
         @type format: string
         @param data: User definition in the appropriate format.
@@ -1510,7 +1510,7 @@ class Client(object):
                  the response header data. 
         @rtype: boolean
         
-        If apiKey argument is not set when calling this method then the default value
+        If api_key argument is not set when calling this method then the default value
         set during this object's instantiation (ie. in __init__) is used.        
         
         """
@@ -1523,22 +1523,22 @@ class Client(object):
                     
         url = "%s/users.%s" % (self.api_url, format)
         
-        if apiKey is None:
-            apiKey = self.api_key
+        if api_key is None:
+            api_key = self.api_key
             
-        headers = {'X-PachubeApiKey': apiKey}
+        headers = {'X-PachubeApiKey': api_key}
                
         d = self._post(url, headers, data)
         d.addCallback(self._getResponseCodeStatusFromHeader)
         return d
     
     
-    def read_user(self, apiKey=None, user_id=None, format=DataFormats.JSON):
+    def read_user(self, api_key=None, user_id=None, format=DataFormats.JSON):
         """ 
         Returns the details of a specific user 
         
-        @param apiKey: An api key with authorization settings allowing this action to be performed
-        @type apiKey: string
+        @param api_key: An api key with authorization settings allowing this action to be performed
+        @type api_key: string
         @param user_id: The user identifier
         @type user_id: string
         @param format: The format to request the results in [json|xml]
@@ -1549,15 +1549,15 @@ class Client(object):
                  by the format argument.
         @rtype: string
         
-        If apiKey argument is not set when calling this method then the default value
+        If api_key argument is not set when calling this method then the default value
         set during this object's instantiation (ie. in __init__) is used.
         """      
         url = "%s/users/%s.%s" % (self.api_url, user_id, format)
         
-        if apiKey is None:
-            apiKey = self.api_key
+        if api_key is None:
+            api_key = self.api_key
             
-        headers = {'X-PachubeApiKey': apiKey}
+        headers = {'X-PachubeApiKey': api_key}
         
         d = self._get(url, headers)
         d.addCallback(self._getResponseBody)
@@ -1566,12 +1566,12 @@ class Client(object):
         return d 
     
     
-    def update_user(self, apiKey=None, user_id=None, format=DataFormats.JSON, data=None):
+    def update_user(self, api_key=None, user_id=None, format=DataFormats.JSON, data=None):
         """
         Updates details of an existing user object. 
 
-        @param apiKey: An api key with authorization settings allowing this action to be performed
-        @type apiKey: string
+        @param api_key: An api key with authorization settings allowing this action to be performed
+        @type api_key: string
         @param user_id: The user identifier
         @type user_id: string
         @param format: The format to request the results in [json|xml]
@@ -1583,28 +1583,28 @@ class Client(object):
                  the response header data. 
         @rtype: boolean
 
-        If apiKey argument is not set when calling this method then the default value
+        If api_key argument is not set when calling this method then the default value
         set during this object's instantiation (ie. in __init__) is used.                
         """
         url = "%s/users/%s.%s" % (self.api_url, user_id, format)
         
-        if apiKey is None:
-            apiKey = self.api_key
+        if api_key is None:
+            api_key = self.api_key
             
-        headers = {'X-PachubeApiKey': apiKey}
+        headers = {'X-PachubeApiKey': api_key}
 
         d = self._put(url, headers, data)
         d.addCallback(self._getResponseCodeStatusFromHeader)
         return d
     
     
-    def delete_user(self, apiKey=None, user_id=None):
+    def delete_user(self, api_key=None, user_id=None):
         """
         Delete a user.
         WARNING: This is final and cannot be undone.
 
-        @param apiKey: An api key with authorization settings allowing this action to be performed
-        @type apiKey: string
+        @param api_key: An api key with authorization settings allowing this action to be performed
+        @type api_key: string
         @param user_id: The user identifier
         @type user_id: string
         
@@ -1612,15 +1612,15 @@ class Client(object):
                  the response header data. 
         @rtype: boolean
 
-        If apiKey argument is not set when calling this method then the default value
+        If api_key argument is not set when calling this method then the default value
         set during this object's instantiation (ie. in __init__) is used.      
         """
         url = "%s/users/%s.%s" % (self.api_url, user_id, format)
         
-        if apiKey is None:
-            apiKey = self.api_key
+        if api_key is None:
+            api_key = self.api_key
             
-        headers = {'X-PachubeApiKey': apiKey}
+        headers = {'X-PachubeApiKey': api_key}
 
         d = self._delete(url, headers)
         d.addCallback(self._getResponseCodeStatusFromHeader)
@@ -1632,27 +1632,27 @@ class Client(object):
     #
     
     
-    def list_api_keys(self, apiKey=None, format=DataFormats.JSON):
+    def list_api_keys(self, api_key=None, format=DataFormats.JSON):
         """ 
         Retrieve a list of all keys for the authenticated account.
 
-        @param apiKey: An api key with authorization settings allowing this action to be performed
-        @type apiKey: string
+        @param api_key: An api key with authorization settings allowing this action to be performed
+        @type api_key: string
         @param format: The format to request the results in [json|xml]
         @type format: string
         
         @return: A deferred that returns a keys the response header data. 
         @rtype: boolean
         
-        If apiKey argument is not set when calling this method then the default value
+        If api_key argument is not set when calling this method then the default value
         set during this object's instantiation (ie. in __init__) is used.
         """     
         url = "%s/keys.%s" % (self.api_url, format)
         
-        if apiKey is None:
-            apiKey = self.api_key
+        if api_key is None:
+            api_key = self.api_key
             
-        headers = {'X-PachubeApiKey': apiKey}
+        headers = {'X-PachubeApiKey': api_key}
 
         d = self._get(url, headers)
         d.addCallback(self._getResponseBody)
@@ -1661,12 +1661,12 @@ class Client(object):
         return d
     
     
-    def create_api_key(self, apiKey=None, format=DataFormats.JSON, data=None):
+    def create_api_key(self, api_key=None, format=DataFormats.JSON, data=None):
         """
         Create a new API key
 
-        @param apiKey: An api key with authorization settings allowing this action to be performed
-        @type apiKey: string
+        @param api_key: An api key with authorization settings allowing this action to be performed
+        @type api_key: string
         @param format: The format to request the results in [json|xml|csv|png]
         @type format: string
         @param data: key definition in the appropriate format.
@@ -1675,7 +1675,7 @@ class Client(object):
         @return: A deferred that returns the API Key of the created key. 
         @rtype: string
         
-        If apiKey argument is not set when calling this method then the default value
+        If api_key argument is not set when calling this method then the default value
         set during this object's instantiation (ie. in __init__) is used.        
         
         """
@@ -1687,10 +1687,10 @@ class Client(object):
                     
         url = "%s/keys.%s" % (self.api_url, format)
         
-        if apiKey is None:
-            apiKey = self.api_key
+        if api_key is None:
+            api_key = self.api_key
             
-        headers = {'X-PachubeApiKey': apiKey}
+        headers = {'X-PachubeApiKey': api_key}
                
         d = self._post(url, headers, data)
         d.addCallback(self._getResponseBody)
@@ -1699,12 +1699,12 @@ class Client(object):
         return d
     
     
-    def read_api_key(self, apiKey=None, key_id=None, format=DataFormats.JSON):
+    def read_api_key(self, api_key=None, key_id=None, format=DataFormats.JSON):
         """ 
         Returns the details of a specific API Key 
         
-        @param apiKey: An api key with authorization settings allowing this action to be performed
-        @type apiKey: string
+        @param api_key: An api key with authorization settings allowing this action to be performed
+        @type api_key: string
         @param key_id: The API key identifier
         @type key_id: string
         @param format: The format to request the results in [json|xml]
@@ -1715,15 +1715,15 @@ class Client(object):
                  by the format argument.
         @rtype: string
         
-        If apiKey argument is not set when calling this method then the default value
+        If api_key argument is not set when calling this method then the default value
         set during this object's instantiation (ie. in __init__) is used.
         """      
         url = "%s/keys/%s.%s" % (self.api_url, key_id, format)
         
-        if apiKey is None:
-            apiKey = self.api_key
+        if api_key is None:
+            api_key = self.api_key
             
-        headers = {'X-PachubeApiKey': apiKey}
+        headers = {'X-PachubeApiKey': api_key}
         
         d = self._get(url, headers)
         d.addCallback(self._getResponseBody)
@@ -1732,28 +1732,28 @@ class Client(object):
         return d 
     
     
-    def delete_api_key(self, apiKey=None, key_id=None):
+    def delete_api_key(self, api_key=None, key_id=None):
         """
         Delete a API key.
         WARNING: This is final and cannot be undone.
 
-        @param apiKey: An api key with authorization settings allowing this action to be performed
-        @type apiKey: string
+        @param api_key: An api key with authorization settings allowing this action to be performed
+        @type api_key: string
         @param key_id: The API key identifier
         @type key_id: string
         
         @return: A deferred that returns the success of the delete key action.
         @rtype: boolean
 
-        If apiKey argument is not set when calling this method then the default value
+        If api_key argument is not set when calling this method then the default value
         set during this object's instantiation (ie. in __init__) is used.      
         """
         url = "%s/keys/%s.%s" % (self.api_url, key_id, format)
         
-        if apiKey is None:
-            apiKey = self.api_key
+        if api_key is None:
+            api_key = self.api_key
             
-        headers = {'X-PachubeApiKey': apiKey}
+        headers = {'X-PachubeApiKey': api_key}
 
         d = self._delete(url, headers)
         d.addCallback(self._getResponseCodeStatusFromHeader)

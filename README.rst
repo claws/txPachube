@@ -27,14 +27,14 @@ Install
 Examples
 ========
 
-These examples require you to have a Pachube account as an appropriately configured
+These examples require you to have a Pachube account and an appropriately configured
 (permissions set to create, update, read, delete) Pachube API key is required. 
 
 List Pachube feeds visible to the API key supplied::
 
     # This example demonstrates a request for feeds visible to the
     # supplied API key. It initialises the Client object with a
-    # default API key that will be used if no apiKey argument is
+    # default API key that will be used if no api_key argument is
     # passed to the various API methods.
 
     from twisted.internet import reactor
@@ -43,26 +43,27 @@ List Pachube feeds visible to the API key supplied::
     # Paste your Pachube API key here
     API_KEY = ""
 
-    def list_feeds(pachubeClient):
-        """ List feeds visible to the api key used """
+
+    if __name__ == "__main__":
+
+        pachubeClient = txPachube.Client(api_key=API_KEY)
+
         d = pachubeClient.list_feeds()
         d.addCallback(lambda feed_list: print "Received feed list content:\n%s\n" % feed_list )
         d.addErrback(lambda reason: print "Error listing visible feeds: %s" % str(reason))
         d.addCallback(reactor.stop)
 
-
-    if __name__ == "__main__":
-        pachubeClient = txPachube.Client(api_key=API_KEY)
-        reactor.callWhenRunning(list_feeds, pachubeClient)
         reactor.run()
 
 
 Create a new feed::
 
     # This example demonstrates the ability to create new feeds. It also
-    # shows an API key being passed to the update_feed method directly 
+    # shows an API key being passed to the create_feed method directly 
     # because no default key was passed to the Client object initialiser.
-   
+    # No format needs to be specified because json is the default format
+    # used.
+ 
     from twisted.internet import reactor
     import txPachube
     import json
@@ -70,24 +71,22 @@ Create a new feed::
     # Paste your Pachube API key here
     API_KEY = ""
 
-    # example feed update data
+    # example create feed data
     feed_data = {"title" : "A Temporary Test Feed",
                  "version" : "1.0.0"}
     
     json_feed_data = json.dumps(feed_data)
 
 
-    def create_feed(pachubeClient, api_key, format, data):
-        """ Create a feed """
-        d = pachubeClient.create_feed(apiKey=api_key, feed_id=feed_id, format=format, data=data)
+    if __name__ == "__main__":
+
+        pachubeClient = txPachube.Client()
+
+        d = pachubeClient.create_feed(api_key=API_KEY, data=json_feed_data)
         d.addCallback(lambda new_feed_id: print "Feed created. New feed id is: %s" % new_feed_id)
         d.addErrback(lambda reason: print "Error creating feed: %s" % str(reason))
         d.addCallback(reactor.stop)
 
-
-    if __name__ == "__main__":
-        pachubeClient = txPachube.Client()
-        reactor.callWhenRunning(create_feed, pachubeClient, API_KEY, txPachube.DataFormats.JSON, json_feed_data)
         reactor.run()
 
 
@@ -134,25 +133,48 @@ Update a feed::
     </eeml>"""
 
 
-    def update_feed(pachubeClient, format, xml_data):
-        """ Update a feed """
-        d = pachubeClient.update_feed(format=format, data=data)
-        d.addCallback(lambda result: print "Feed updated successfully:\n%s\n" % result )
+    if __name__ == "__main__":
+
+        pachubeClient = txPachube.Client(api_key=API_KEY, feed_id=FEED_ID)
+
+        d = pachubeClient.update_feed(format=txPachube.DataFormats.XML, data=xml_data)
+        d.addCallback(lambda result: print "Feed updated successfully:\n%s\n" % result)
         d.addErrback(lambda reason: print "Error updating feed: %s" % str(reason))
         d.addCallback(reactor.stop)
 
-
-    if __name__ == "__main__":
-        pachubeClient = txPachube.Client(api_key=API_KEY, feed_id=FEED_ID)
-        reactor.callWhenRunning(update_feed, pachubeClient, txPachube.DataFormats.XML, feed_data)
         reactor.run()
 
 
+Delete a feed::
+
+    # This example demonstrates the ability to delete a feed.
+    WARNING: This will REALLY delete the feed identifier listed. Make sure it is only a test feed. 
+ 
+    from twisted.internet import reactor
+    import txPachube
+    import json
+
+    # Paste your Pachube API key here
+    API_KEY = ""
+
+    # Paste the feed identifier you wish to be DELETED here
+    FEED_ID = ""
+
+    if __name__ == "__main__":
+
+        pachubeClient = txPachube.Client(api_key=API_KEY)
+
+        d = pachubeClient.delete_feed(feed_id=FEED_ID)
+        d.addCallback(lambda result: print "Feed was deleted: %s" % result)
+        d.addErrback(lambda reason: print "Error deleting feed: %s" % str(reason))
+        d.addCallback(reactor.stop)
+
+        reactor.run()
 
 Todo
 ====
 
 * Add classes for environments (feeds), datastreams, datapoints, etc so that
-  these can be passes between the txPachube funcitons instead of the current
+  these can be passes between the txPachube functions instead of the current
   strings containing json or xml or csv data.
 
