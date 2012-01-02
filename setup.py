@@ -7,7 +7,7 @@ sdict = {
     'author' : 'Chris Laws',
     'author_email' : 'clawsicus@gmail.com',
     'url' : 'https://github.com/claws/txPachube'
-    'packages' : ['txpachube'],
+    'packages' : ['txPachube'],
     'classifiers' : [
         'Development Status :: 4 - Beta',
         'Environment :: Console',
