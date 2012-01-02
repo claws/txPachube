@@ -35,6 +35,7 @@ These examples require you to have a Pachube account and an appropriately config
 
 List Pachube feeds visible to the API key supplied::
 
+    #!/usr/bin/env python 
     # This example demonstrates a request for feeds visible to the
     # supplied API key. It initialises the Client object with a
     # default API key that will be used if no api_key argument is
@@ -61,6 +62,7 @@ List Pachube feeds visible to the API key supplied::
 
 Create a new feed::
 
+    #!/usr/bin/env python 
     # This example demonstrates the ability to create new feeds. It also
     # shows an API key being passed to the create_feed method directly 
     # because no default key was passed to the Client object initialiser.
@@ -95,6 +97,7 @@ Create a new feed::
 
 Update a feed::
   
+    #!/usr/bin/env python 
     # This example show how a feed can be updated. The Client object
     # has been initialised with an API key and a feed id so they don't
     # need to be passed to the update_feed method. The format argument
@@ -148,8 +151,9 @@ Update a feed::
         reactor.run()
 
 
-Read a feed:
-    
+Read a feed::
+   
+    #!/usr/bin/env python 
     # This example demonstrates a request for feed data and uses
     # additonal parameters to restrict the datastreams returned.
     # It initialises the Client object with a default API key and
@@ -180,6 +184,7 @@ Read a feed:
 
 Delete a feed::
 
+    #!/usr/bin/env python 
     # This example demonstrates the ability to delete a feed.
     WARNING: This will REALLY delete the feed identifier listed. Make sure it is only a test feed. 
  
