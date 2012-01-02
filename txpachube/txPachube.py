@@ -9,7 +9,7 @@ located at: http://api.pachube.com/v2/
 Much of the API documentation has been shamelessly duplicated within the
 method docstrings. The documentation on the Pachube API seems quite clear.
 Embedding the documentation within the docstrings means that the Python
-help(txpachube) output will be useful.
+help(txPachube) output will be useful.
 Always refer back to the Pachube site for the most recent, up to date, API
 documentation.
 
@@ -26,6 +26,8 @@ This implementation performs the following:
    
 Dependencies (other than Python):
 twisted 11.0.0
+pyOpenSSL
+
 """
 
 import json
@@ -116,7 +118,7 @@ class DataFormats(object):
     
          
 
-class Pachube(object):
+class Client(object):
     """ 
     Encapsulates the Pachube API on top of the nonblocking,
     event driven twisted framework. 
@@ -228,7 +230,7 @@ class Pachube(object):
         self.agent = Agent(reactor)
         
         # Common header settings used in every request.
-        self.headers = {'User-Agent': 'txpachube Client',
+        self.headers = {'User-Agent': 'txPachube Client',
                         'Content-Type' : 'application/x-www-form-urlencoded'}    
         
 
