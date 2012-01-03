@@ -1048,10 +1048,6 @@ class Client(object):
     #
     
     
-    def list_datapoints(self): pass
-    
-    
-    
     def create_datapoints(self, api_key=None, feed_id=None, datastream_id=None, format=DataFormats.JSON, data=None):
         """
         Creates new datapoints for datastream. The body of the request 

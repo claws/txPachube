@@ -6,7 +6,7 @@ sdict = {
     'description' : 'Python/Twisted wrapper of Pachube API',
     'author' : 'Chris Laws',
     'author_email' : 'clawsicus@gmail.com',
-    'url' : 'https://github.com/claws/txPachube'
+    'url' : 'https://github.com/claws/txPachube',
     'packages' : ['txPachube'],
     'classifiers' : [
         'Development Status :: 4 - Beta',

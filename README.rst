@@ -24,7 +24,8 @@ Install
 1. Download txPachube archive.
 
 2. Install txPachube module into your Python distribution.
-    python setup.py install
+  
+    sudo python setup.py install
 
 
 Examples
