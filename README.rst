@@ -29,9 +29,19 @@ Install
 
 1. Download txPachube archive.
 
+    $ git clone git://github.com/claws/txPachube.git
+    
+For other download options (zip, tarball) visit the github web page of `txPachube <https://github.com/claws/txPachube>_`
+
 2. Install txPachube module into your Python distribution.
   
     sudo python setup.py install
+    
+3. Test
+
+    $ python
+    >>> import txPachube
+    >>>
 
 
 Examples
