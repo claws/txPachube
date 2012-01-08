@@ -270,7 +270,8 @@ Example use case::
             if data.energy:
                 datastream_data = (self.energy_datastream_id, data.energy)
                 datastreams_data.append(datastream_data)
-			if datastreams_data:
+            
+            if datastreams_data:
                 self.updatePachube(datastreams_data)
 
         def updatePachube(self, datastreams_data)
