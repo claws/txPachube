@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-This module implements the Pachube API in Python. It is built on top of the 
+This package implements the Pachube API in Python. It is built on top of the 
 Twisted event driven networking framework.
 
 This implementation closely follows the documented Pachube API
@@ -29,83 +29,32 @@ twisted 11.0.0
 pyOpenSSL
 
 """
-
+import datetime
+try:
+    from xml.etree import cElementTree as etree
+except ImportError:
+    import xml.etree.ElementTree as etree
 import json
 import logging
 import urllib
-from twisted.internet import reactor, defer
-from twisted.internet.protocol import Protocol
-from twisted.web.client import Agent, ResponseDone
-from twisted.web.http_headers import Headers
-from twisted.web.iweb import IBodyProducer
-from zope.interface import implements
 
 
 
+version = (0, 0, 2)
 
 
 
-    
-# NOTE:
-# In twisted 11.1.0 this class can be replaced by twisted.web.client.FileBodyProducer
-#
-class RequestBodyProducer(object):
-    """
-    This object is used to feed the request body data
-    during a request to a remote server. It also allows
-    the Agent request method to populate the content
-    length header field.
-    """
-    implements(IBodyProducer)
-  
-    def __init__(self, body=None):
-        if body is None:
-            self.body = ""
-        else:
-            self.body = body
-        self.length = len(body)
-  
-    def startProducing(self, consumer):
-        consumer.write(self.body)
-        return defer.succeed(None)
-  
-    def pauseProducing(self):
-        pass
-  
-    def stopProducing(self):
-        pass
+# store the detected XML (EEML) namespace as it is need when search elements
+Namespace = None
 
+EEML_NAMESPACE = 'eeml'
+OPENSEARCH_NAMESPACE = 'opensearch'
+namespace_map = {EEML_NAMESPACE : 'http://www.eeml.org/xsd/0.5.1',
+                 OPENSEARCH_NAMESPACE : 'http://a9.com/-/spec/opensearch/1.1/'}
+for namespace in namespace_map:
+    etree.register_namespace(namespace, namespace_map[namespace])
 
-
-class ResponseBodyProtocol(Protocol):
-    """
-    This object is used to receive the response body data
-    after a request to a remote server.
-    """
-    def __init__(self, finished, response):
-        self.finished = finished
-        self.response = response
-        self.buffer = []
-
-    def dataReceived(self, bytes):
-        """
-        Receive and store some bytes of the response data
-        """
-        self.buffer.append(bytes)
-
-    def connectionLost(self, reason):
-        """ 
-        Return the response and the response body via the finished deferred.
-        """
-        r = reason.trap(ResponseDone)
-        if r == ResponseDone:
-            logging.debug('Finished receiving body: %s' % reason.getErrorMessage())
-            responseData = "".join(self.buffer)
-            self.buffer = []
-            result = (self.response, responseData)
-            self.finished.callback(result)
-
-
+        
 
 class DataFormats(object):
     """
@@ -115,29 +64,33 @@ class DataFormats(object):
     XML = "xml"
     CSV = "csv"
     PNG = "png"
-    
-         
 
-class Client(object):
-    """ 
-    Encapsulates the Pachube API on top of the nonblocking,
-    event driven twisted framework. 
+
+
+class DataFields(object):
     """
-    
-    api_url = "api.pachube.com/v2"
-    
+    Define the field names used within the data passed between the client
+    and Pachube.
+    """
     # A selection of common environment field keys that are useful when
     # building/inspecting json format objects to be sent to pachube.
     About = 'about'
-    Access_Methods = 'Access_Methods'
+    Access_Method = 'access_method'
+    Access_Methods = 'access_methods'
     Api_Key = 'api_key'
     At = 'at'
+    Creatable_Role = 'creatable_role'
     Creatable_Roles = 'creatable_roles'
     Creator = 'creator'
     Current_Value = 'current_value'
+    Data = 'data'
     Datapoints = 'datapoints'
     Datastream_Id = 'datastream_id'
+    Datastream_Trigger = 'datastream-trigger'
+    Datastream_Triggers = 'datastream-triggers'
     Datastreams = 'datastreams'
+    Datastreams_Allowed = 'datastreams_allowed'
+    Datastreams_Count = 'datastreams_count'
     Deliver_Email = 'deliver_email'
     Description = 'description'
     Display_Activity = 'display_activity'
@@ -147,14 +100,18 @@ class Client(object):
     Domain = 'domain'
     Elevation = 'ele'
     Email = 'email'
+    Environment = 'environment'
     Environment_Id = 'environment_id'
     Exposure = 'exposure'
     Feed = 'feed'
     Feed_Id = 'feed_id'
     First_Name = 'first_name'
     Full_Name = 'full_name'
+    Icon = 'icon'
     Id = 'id'
     Key = 'key'
+    Keys = 'keys'
+    Label = 'label'  # unit label
     Last_Name = 'last_name'
     Latitude = 'lat'
     Location = 'location'
@@ -164,1595 +121,2001 @@ class Client(object):
     Minimum_Value = 'min_value'
     Name = 'name'
     Notified_At = 'notified_at'
-    Organization = 'organization'
+    Organisation = 'organisation'
+    Permission = 'permission'
     Permissions = 'permissions'
     Private = 'private'
     Private_Access = 'private_access'
     Receive_Forum_Notifications = 'receive_formum_notifications'
     Referer = 'referer'
     Resources = 'resources'
+    Results = 'results'
+    Role = 'role'
     Roles = 'roles'
     Source_Ip = 'source_ip'
     Status = 'status'
     Stream_Id = 'stream_id'
     Subscribed_To_Mailings = 'subscribed_to_mailings'
-    Symbol = 'symbol'
+    Symbol = 'symbol'  # unit symbol
+    Tag = 'tag'
     Tags = 'tags'
     Threshold_Value = 'threshold_value'
     Title = 'title'
     Timestamp = 'timestamp'
     Timezone = 'timezone'
+    Total_Api_Access_Count = 'total_api_access_count'
+    Total_Results = 'totalResults'
     Triggering_Datastream = 'triggering_datastream'
     Trigger_Type = 'trigger_type'
-    Type = 'type'
+    Type = 'type'  # unit type
     Unit = 'unit'
     User = 'user'
+    Users = 'users'
     Updated = 'Updated'
     Url = 'url'
     Value = 'value'
     Version = 'version'
     Website = 'website'
+
+
+
+class DataStructure(object):
+    """
+    Base class for Pachube data structure objects
+    
+    Serialized versions of objects deriving from this class are passed between
+    the Pachube API and the txPachube client. These structures are designed in
+    such a way that they can be used for JSON or XML (EEML).
+    """
+    
+
+            
+    def toDict(self):
+        """ 
+        Return the data structure object as a dict. This method is used as 
+        a helper function for JSON serialization/deserialization.
+        """
+        raise NotImplementedError
+    
+
+    def toXml(self):
+        """ 
+        Return the object as an xml ElementTree
+        
+        @return: XML representation of the object
+        @rtype: etree.Element
+        """
+        raise NotImplementedError
     
     
-    def __init__(self, api_key=None, feed_id=None, use_http=False, timezone=None):
+    def fromDict(self, inDict):
         """
-        @param api_key: The default api key, with appropriate authorization privileges,
-                        to use.
-        @type api_key: string
-        @param feed_id: The default feed identifier to use
-        @type feed_id: string
-        @param use_http: A flag instructing this object to use http instead of
-                         the default https.
-        @type use_http: boolean
-        @param timezone: By default all get requests return results in UTC.
-                         Defining a timezone results in the returned data
-                         having local timestamps. For more information on
-                         the available settings see:
-                         http://api.pachube.com/#time-zones
-        @type timezone: string (eg. +3.5 or Adelaide
-        
+        Populate attributes from a dict
         """
-        self.feed_id = feed_id
-        self.api_key = api_key
-
-        prefix = "https"
-        if use_http:
-            prefix = "http"
-
-        self.api_url = "%s://api.pachube.com/v2" % (prefix)
+        raise NotImplementedError
+    
         
-        self.timezone = None
-        if timezone:
-            self.timezone = "timezone=%s" % timezone
-        
-        # The agent web client is responsible for handling all 
-        # requests to and responses from the pachube site.
-        self.agent = Agent(reactor)
-        
-        # Common header settings used in every request.
-        self.headers = {'User-Agent': 'txPachube Client',
-                        'Content-Type' : 'application/x-www-form-urlencoded'}    
-        
-
-    #
-    # Callbacks
-    #
-
-
-    def _handleResponseHeader(self, response, url):
+    def fromXml(self, element):
         """
-        Called upon successful receipt of the response headers. The response's
-        body is then retrieved. Upon completion of the body retrieval the
-        returned deferred is fired returning a tuple containing the response
-        and the response body. 
+        Populate attributes from a XML etree
         
-        @param response: The response object
-        @type response: twisted.web.client.Response
-        @param url: The url used during the request
-        @type url: string
-        
-        @return:  A deferred that returns a result tuple containing the response,
-        and the response body.
-        @rtype: twisted.internet.defer.Deferred      
+        @param xml: an xml element tree
+        @type xml: etree.Element
         """
-        logging.debug("Success communicating with url: %s" % (url))
-        finished = defer.Deferred()
-        response.deliverBody(ResponseBodyProtocol(finished, response))
-        return finished
+        raise NotImplementedError
+          
 
-
-    def _handleRequestFailure(self, failure, url=None):
+    def encode(self, format=DataFormats.JSON):
+        """ 
+        Return a string representation of the object encoded in the specified format
         """
-        Callback to handle an error resulting from an attempt to communicate with pachube.
+        if format == DataFormats.JSON:
+            return json.dumps(self.toDict())
         
-        @param failure: A failure instance
-        @type failure: twisted.python.failure.Failure instance
-        @param url: The url used during the request
-        @type url: string
-        """
-        if url:
-            logging.error('Error communicating with url %s\nError: %s\n' % (url, failure))
+        elif format == DataFormats.XML:
+            eeml = etree.Element('eeml')
+            eeml.attrib['xmlns'] = 'http://www.eeml.org/xsd/0.5.1'
+            eeml.attrib['xmlns:xsi'] = 'http://www.w3.org/2001/XMLSchema-instance'
+            eeml.attrib['version'] = '0.5.1'
+            eeml.attrib['xsi:schemaLocation'] = 'http://www.eeml.org/xsd/005 http://www.eeml.org/xsd/005/005.xsd'
+            eeml.append(self.toXml())
+            return etree.tostring(eeml, 'utf-8')            
+
         else:
-            logging.error('Error detected: %s' % (failure))
-
-
-    def _getResponseBody(self, result):
-        """
-        Most responses need to deliver the response body data. Some need
-        to return data from the header only. This method provides the 
-        ability to return only the response body data.
-        """
-        response, body = result
-        return body
-
-
-    def _convertJsonToDict(self, body):
-        """
-        Return the JSON format response body data as a dict.
-        """
-        return json.loads(body) 
-
-
-    def _getResponseCodeStatusFromHeader(self, result):
-        """
-        Most responses need to deliver the response body data. Some need
-        to return data from the header only. This method provides the 
-        ability to return a success/fail criteria based on the response
-        header code received.
-        """
-        response, body = result
-        success = response.code == 200
-        if not success:
-            error_str = "%s : %s" % (response.code, response.phrase)
-            logging.error("Unexpected response code: \'%s\', phrase: %s" % (error_str))
-        return success
+            raise Exception("Don't know how to encode %s using format %s" % (self.__class__.__name__,
+                                                                             format))
     
     
-    def _getLocationFromHeader(self, result):
-        """
-        Extract and return the location of the created item 
-        from the 'Location' field in the response header.
-        """
-        response, body = result
-        if response.code == 201:
-            # created ok
-            if response.headers.hasHeader("Location"):
-                locations = response.headers.getRawHeaders("Location")
-                if locations:
-                    if len(locations) > 1:
-                        logging.warning("Unexpected number of location items in response header: %s" % locations)
-                        # for now just return the first occurrence
-                    location = locations[0]
-                    return location
-                else:
-                    err_str = "No content in response header \'Location\' field"
-                    logging.error(err_str)
-                    raise Exception(err_str)
-            else:
-                err_str = "No response header \'Location\' field found"
-                logging.error(err_str)
-                raise Exception(err_str)
+    def decode(self, data, format=DataFormats.JSON):
+        """ 
+        Decode data, in the specified format, into local attributes
+        """ 
+        if format == DataFormats.JSON:
+            inDict = json.loads(data)
+            self.fromDict(inDict)
+                    
+        elif format == DataFormats.XML:
+            # parse xml string, rip off the eeml wrapper and process
+            # xml elements by handing off to fromXml method. All
+            # viewable (feed, datastream, datapoint) XML items come 
+            # wrapped in the eeml, environment tags. 
+            element = etree.fromstring(data)
+            environment = element.find("{%s}%s" % (namespace_map[EEML_NAMESPACE], DataFields.Environment))
+            if environment is not None:
+                self.fromXml(environment)
+
         else:
-            err_str = "Unexpected response => %s:%s" % (response.code, response.phrase)
-            logging.error(err_str)
-            raise Exception(err_str) 
+            raise Exception("Don't know how to decode %s using format %s" % (self.__class__.__name__,
+                                                                             format))
 
-    #
-    # 
-    #
+              
+    def __str__(self):
+        """ Return a string representation of this datapoint """
+        return json.dumps(self.toDict(), sort_keys=True, indent=2)
+        
+
+class Unit(DataStructure):
+    """ Models a Unit item within a Pachube data structure """
+    
+    # See http://www.eeml.org/#units
+    Basic_Si = 'basicSI'                               # m, kg, etc
+    Derived_Si = 'derivedSI'                           # newtons, ohms, hertz, etc
+    Conversion_Based_Units = 'conversionBasedUnits'    # inches
+    Derived_Units = 'derivedUnits'                     # miles per hour
+    Context_Dependent_Units = 'contextDependentUnits'  # heartbeats per minute
+    Valid_Unit_Types = [Basic_Si,
+                        Derived_Si,
+                        Conversion_Based_Units,
+                        Derived_Units,
+                        Context_Dependent_Units]
     
     
-    def _sendRequest(self, method, url, headers, bodyProducer):
-        """
-        Send a request to the url, where the method argument defines the kind of request.
-        Returns a deferred that returns a tuple containing the response header and the
-        response body.
-        
-        @param method: The kind of request to make. [GET|PUT|POST|DELETE]
-        @type method: string
-        @param url: The url used during the request
-        @type url: string
-        @param headers: A dict of header key value pairs to be used in the request
-        @type headers: dict
-        @param bodyProducer: An object implementing IBodyProducer that is capable
-                             of being used to send the request body data.
-        
-        @return:  A deferred that returns a result tuple containing the response,
-        and the response body.
-        @rtype: twisted.internet.defer.Deferred        
-        """
-        headers.update(self.headers)
-        logging.debug("method=%s, url=%s, headers=%s, bodyLength=%s" % (method,
-                                                                        url,
-                                                                        str(headers),
-                                                                        bodyProducer.length if bodyProducer else 0))
-        d = self.agent.request(method=method,
-                               uri=url,
-                               headers=Headers(dict([(k, [v]) for k,v in headers.items()])),
-                               bodyProducer=bodyProducer)
-        d.addCallback(self._handleResponseHeader, url)
-        d.addErrback(self._handleRequestFailure, url)
-        return d        
+    def __init__(self, **kwargs):
+        self._attributes = [DataFields.Label,
+                            DataFields.Type,
+                            DataFields.Symbol]
+        self.label = None
+        self.type = None
+        self.symbol = None
+
+        # initialise Unit attributes to specified values or None.
+        self.fromDict(kwargs)
 
 
-    def _get(self, url, headers):
+    def toDict(self):
         """ 
-        Perform a get at the specified url 
-        
-        @param url: The url used during the request
-        @type url: string
-        @param headers: A dict of header key value pairs to be used in the request
-        @type headers: dict
-
-        @return:  A deferred that returns a result tuple containing the response,
-        and the response body.
-        @rtype: twisted.internet.defer.Deferred
+        Return the data structure object as a dict. This method is used as 
+        a helper function for JSON serialization/deserialization.
         """
-        return self._sendRequest("GET", url, headers, None)
+        unitDict = dict()
+        for attribute in self._attributes:
+            attribute_value = getattr(self, attribute, None)
+            if attribute_value:
+                unitDict[attribute] = str(attribute_value)
+        return unitDict
+    
+
+    def fromDict(self, inDict):
+        """
+        Populate attributes from a dict
+        """
+        for attribute in self._attributes:
+            attribute_value = inDict.get(attribute, None)
+            if attribute_value:
+                if attribute == DataFields.Type:
+                    if attribute_value not in Unit.Valid_Unit_Types:
+                        raise Exception("Invalid unit type \'%s\' not in %s" % (attribute_value,
+                                                                                Unit.Valid_Unit_Types))
+                setattr(self, attribute, attribute_value)        
         
-        
-    def _put(self, url, headers, data):
+            
+    def toXml(self, parent=None):
         """ 
-        Perform a put at the specified url 
+        Return the object as an xml ElementTree 
         
-        @param url: The url used during the request
-        @type url: string
-        @param headers: A dict of header key value pairs to be used in the request
-        @type headers: dict
-        @param data: The data that forms the body of the request.
-        @type data: string
-
-        @return:  A deferred that returns a result tuple containing the response,
-        and the response body.
-        @rtype: twisted.internet.defer.Deferred
+        @param parent: The parent element
+        @type parent: etree.Element
+        
+        @return: XML representation of the object
+        @rtype: etree.Element
         """
-        return self._sendRequest("PUT", url, headers, RequestBodyProducer(data))
+        unit = etree.Element(DataFields.Unit)
+        if self.type:
+            unit.attrib[DataFields.Type] = self.type
+        if self.symbol:
+            unit.attrib[DataFields.Symbol] = self.symbol
+        unit.text = self.label            
+
+        return unit
+
+
+    def fromXml(self, element):
+        """
+        Populate attributes from a XML etree
+        
+        @param xml: an xml element tree
+        @type xml: etree.Element
+        """
+        unit = element.find(DataFields.Unit)
+        if unit is not None:
+            unit_type = unit.attrib.get(DataFields.Type, None)
+            if unit_type:
+                self.type = unit_type
+            unit_symbol = unit.attrib.get(DataFields.Symbol, None)
+            if unit_symbol:
+                self.symbol = unit_symbol
+            self.label = unit.text
     
     
-    def _post(self, url, headers, data):
+
+class Datapoint(DataStructure):
+    """ Models a Datapoint item within a datastream """
+    
+    def __init__(self, **kwargs):
+        self._attributes = [DataFields.At,
+                            DataFields.Value]
+        self.at = None
+        self.value = None
+
+        # initialise Datapoint attributes to specified values or None.
+        self.fromDict(kwargs)
+        
+
+    def toDict(self):
         """ 
-        Perform a post at the specified url 
-        
-        @param url: The url used during the request
-        @type url: string
-        @param headers: A dict of header key value pairs to be used in the request
-        @type headers: dict
-        @param data: The data that forms the body of the request.
-        @type data: string
-
-        @return:  A deferred that returns a result tuple containing the response,
-        and the response body.
-        @rtype: twisted.internet.defer.Deferred
+        Return the data structure object as a dict. This method is used as 
+        a helper function for JSON serialization/deserialization.
         """
-        return self._sendRequest("POST", url, headers, RequestBodyProducer(data))       
+        datapointDict = dict()
+        for attribute in self._attributes:
+            attribute_value = getattr(self, attribute, None)
+            if attribute_value:
+                datapointDict[attribute] = str(attribute_value)
+        return datapointDict
     
     
-    def _delete(self, url, headers):
+    def fromDict(self, inDict):
+        """
+        Populate attributes from a dict
+        """
+        for attribute in self._attributes:
+            attribute_value = inDict.get(attribute, None)
+            if attribute_value:
+                setattr(self, attribute, attribute_value)
+    
+    
+    def toXml(self, parent=None):
         """ 
-        Perform a delete at the specified url
+        Return the object as an xml ElementTree 
         
-        @param url: The url used during the request
-        @type url: string
-        @param headers: A dict of header key value pairs to be used in the request
-        @type headers: dict
-
-        @return:  A deferred that returns a result tuple containing the response,
-        and the response body.
-        @rtype: twisted.internet.defer.Deferred
+        @param parent: The parent element
+        @type parent: etree.Element
+        
+        @return: XML representation of the object
+        @rtype: etree.Element
         """
-        return self._sendRequest("DELETE", url, headers, None)        
+        value = etree.Element(DataFields.Value)
+        value.attrib[DataFields.At] = self.at
+        value.text = self.value
+        return value
+
+
+    def fromXml(self, element):
+        """
+        Populate attributes from a XML etree
         
+        @param xml: an xml element tree
+        @type xml: etree.Element
+        """
+        datapoint = element.find(DataFields.Value)
+        if datapoint is not None:
+            at_time = datapoint.attrib.get(DataFields.At, None)
+            if at_time:
+                self.at = at_time
+            value = datapoint.text
+            if value:
+                self.value = value       
+  
     
-    #
-    # Environments (Feeds)
-    #
+    
+class Location(DataStructure):
+
+    # Exposure kinds
+    Indoor = "indoor"
+    Outdoor = "outdoor"
+    Valid_Exposure_Kinds = [Indoor, Outdoor]
+    
+    # Domina kinds
+    Physical = 'physical'
+    Virtual = 'virtual'
+    Valid_Domain_Kinds = [Physical, Virtual]
+    
+    # Disposition kinds
+    Fixed = 'fixed'
+    Mobile = 'mobile'
+    Valid_Disposition_Kinds = [Fixed, Mobile]
     
     
-    def list_feeds(self, api_key=None, format=DataFormats.JSON, parameters=None):
+    def __init__(self, **kwargs):
+        self._attributes = [DataFields.Disposition,
+                            DataFields.Domain,
+                            DataFields.Elevation,
+                            DataFields.Exposure,
+                            DataFields.Latitude,
+                            DataFields.Longitude,
+                            DataFields.Name]
+        self.disposition = None
+        self.domain = None
+        self.ele = None
+        self.exposure = None
+        self.lat = None
+        self.lon = None
+        self.name = None
+        
+        # initialise attributes to specified values.
+        self.fromDict(kwargs)
+        
+            
+    def toDict(self):
         """ 
-        Returns a paged list of Pachube's feeds that are viewable by 
-        the authenticated account with a default page size of 50 feeds.
-        
-        @param api_key: An api key with authorization settings allowing this action to be performed
-        @type api_key: string
-        @param format: The format to request the results in [json|xml|csv]
-        @type format: string
-        @param parameters: Additional parameters to configure the search query.
-        @type parameters: dict
-        
-        @return: A deferred that returns the response body which is a paged
-                 list of feeds (default 50 per page) viewable by the api_key 
-                 provided.
-        @rtype: string (in the format specified by the format argument)
-        
-        
-        Available settings for parameters:
-        
-        page
-            Integer indicating which page of results you are requesting. Starts from 1.
-            http://api.pachube.com/v2/feeds?page=2
-        
-        per_page
-            Integer defining how many results to return per page (1 to 1000).
-            http://api.pachube.com/v2/feeds?per_page=5
-        
-        content
-            String parameter ('full' or 'summary') describing whether we 
-            want full or summary results. Full results means all datastream
-            values are returned, summary just returns the environment meta 
-            data for each feed.
-            http://api.pachube.com/v2/feeds?content=summary
-        
-        q
-            Full text search parameter. Should return any feeds matching this string.
-            http://api.pachube.com/v2/feeds?q=arduino
-        
-        tag
-            Returns feeds containing datastreams tagged with the search query.
-            http://api.pachube.com/v2/feeds?tag=temperature
-        
-        user
-            Returns feeds created by the user specified.
-            http://api.pachube.com/v2/feeds.xml?user=pachube
-        
-        units
-            Returns feeds containing datastreams with units specified by the 
-            search query.
-            http://api.pachube.com/v2/feeds.xml?units=celsius
-        
-        status
-            Possible values ('live', 'frozen', or 'all'). Whether to search 
-            for only live feeds, only frozen feeds, or all feeds. Defaults to all.
-            http://api.pachube.com/v2/feeds.xml?status=frozen
-        
-        order
-            Order of returned feeds. Possible values ('created_at', 'retrieved_at',
-            or 'relevance').
-            http://api.pachube.com/v2/feeds.xml?order=created_at
-        
-        show_user
-            Include user login and user level for each feed. 
-            Possible values: true, false (default).
-            http://api.pachube.com/v2/feeds.xml?show_user=true
-        
-        
-        The following additional advanced parameters are more intensive 
-        queries that are restricted to particular account types:
-        
-        lat    
-            Used to find feeds located around this latitude. 
-            Used if ids/_datastreams_ are not specified.
-            lat=51.5235375648154
-        
-        lon
-            Used to find feeds located around this longitude. 
-            Used if ids/_datastreams_ are not specified.
-            lon=-0.0807666778564453
-        
-        distance
-            search radius
-            distance=5.0
-        
-        distance_units
-            miles or kms (default).
-            distance_units=miles        
-
-        If api_key argument is not set when calling this method then the
-        value set during this object's instantiation (ie. in __init__) is used.        
+        Return the data structure object as a dict. This method is used as 
+        a helper function for JSON serialization/deserialization.
         """
-        
-        url = "%s/feeds.%s" % (self.api_url, format)
-        
-        if parameters:
-            params = urllib.urlencode(parameters)
-            url = "%s?%s" % (url, params)
-        
-        if api_key is None:
-            api_key = self.api_key
-            
-        headers = {'X-PachubeApiKey': api_key}
-        
-        d = self._get(url, headers)
-        d.addCallback(self._getResponseBody)
-        if format == DataFormats.JSON:
-            d.addCallback(self._convertJsonToDict)
-        return d
-        
-        
-    def create_feed(self, api_key=None, format=DataFormats.JSON, data=None):
-        """ 
-        Returns a paged list of Pachube's feeds that are viewable by 
-        the authenticated account with a default page size of 50 feeds.
-        
-        @param api_key: An api key with authorization settings allowing this action to be performed
-        @type api_key: string
-        @param format: The format to request the results in [json|xml|csv]
-        @type format: string
-        @param data: A string detailing the environment to be created.
-        @type data: string
-        
-        @return: A deferred that returns the feed_id of the newly created feed. 
-        @rtype: string
+        locationDict = dict()
+        for attribute in self._attributes:
+            attribute_value = getattr(self, attribute, None)
+            if attribute_value:
+                locationDict[attribute] = str(attribute_value)
+        return locationDict
 
-        If api_key argument is not set when calling this method then the
-        value set during this object's instantiation (ie. in __init__) is used.
+
+    def fromDict(self, inDict):
         """
-        
-        def getFeedIdFromLocation(location):
-            """
-            Extract and return the new feed id from the 'Location' field in the response header.
-            """
-            feed_id = location.split("/")[-1]
-            return feed_id
-                    
-        
-        if format == DataFormats.CSV:
-            raise Exception("CSV format is not supported for creating feeds")
-        
-        url = "%s/feeds.%s" % (self.api_url, format)
-        
-        if api_key is None:
-            api_key = self.api_key
-            
-        headers = {'X-PachubeApiKey': api_key}
-
-        d = self._post(url, headers, data)
-        d.addCallback(self._getLocationFromHeader)
-        d.addCallback(getFeedIdFromLocation)
-        return d
-    
-    
-    def read_feed(self, api_key=None, feed_id=None, format=DataFormats.JSON, parameters=None):
-        """ 
-        Returns the most recent datastreams for environment [feed_id]
-        
-        @param api_key: An api key with authorization settings allowing this action to be performed
-        @type api_key: string
-        @param feed_id: The feed identifier
-        @type feed_id: string
-        @param format: The format to request the results in [json|xml|csv]
-        @type format: string
-        @param parameters: Additional parameters to configure the search query.
-        @type parameters: dict
-        
-        @return: A deferred that returns the response body which contains
-                 the most recent datastreams for environment [feed_id] 
-                 viewable by the api_key provided.
-        @rtype: string (in the format specified by the format argument)
-        
-        
-        Available settings for parameters:
-        datastream
-            Filter the returned datastreams. Comma separated datastream IDs.
-            http://api.pachube.com/v2/feeds/123.json?datastreams=energy,power
-
-        show_user
-            Include user login and user level for each feed. 
-            Possible values: true, false (default).
-            http://api.pachube.com/v2/feeds/123.xml?show_user=true (json/xml only)        
-
-
-        Available settings for parameters supporting historical queries:  
-        start: 
-            Defines the starting point of the query as a timestamp, 
-            e.g. 2010-05-20T11:01:46Z. The default value is blank.
-
-        end: 
-        Defines the end point of the data returned as a timestamp, 
-        e.g. 2010-05-21T11:01:46Z. The default value is set to the current timestamp.
-
-        duration:
-            Specifies the duration of the query.
-            If used in conjunction with end it will request the data prior to the end date.
-            If used in conjunction with start it will request the data after the start date.
-            If used by itself it will give the most recent data for the duration specified.
-            It is incorrect to specify start, end and duration
-
-            The format is <number><time unit> e.g. 10minutes, 6hours
-
-            The valid time units are:
-            seconds
-            minute(s)
-            hour(s)
-            day(s)
-            week(s)
-            month(s)
-            year(s)
-
-        page: 
-            Defines which page we are looking at of the matching results. 
-            If not set, the default value is 1
-
-        per_page: 
-            Defines how many results are returned per page. 
-            If not set this value defaults to 100. Maximum value is 1000
-
-        time: 
-            Returns the feed with the values as they were at the specified timestamp. 
-            There are a few points to note about this functionality:
-                Only the values of the datastream and their timestamps are changed, 
-                all other metadata reflects the current state of the feed and its datastreams
-                If a datastream had no values at the time specified (either because it didn't
-                exist or because it hadn't been updated) it will be excluded from the output
-        
-        find_previous:
-            Will also return the previous value to the date range being requested. 
-            Note that this is useful for any graphing because if you want to draw a graph of 
-            the date range you specified you would end up with a small gap until the first value.
-
-        interval_type:
-            If set to "discrete" the data will be returned in fixed time interval format 
-            according to the inverval value supplied. If this is not set, the raw datapoints
-            will be returned.
-
-        interval: 
-            Determines what interval of data is requested and is defined in seconds between
-            the datapoints. If a value is passed in which does not match one of these values, 
-            it is rounded up to the next value. 
-            The acceptable values are currently:
-                Value    Description                     Maximum range in one query
-                0        Every snapshot stored            6 hours
-                30       30 second interval data          12 hours
-                60       One snapshot every minute        24 hours
-                300      One snapshot every 5 minutes     5 days
-                900      One snapshot every 15 minutes    14 days
-                3600     One snapshot per hour            31 days
-                10800    One snapshot per three hours     90 days
-                21600    One snapshot per six hours       180 days
-                43200    One snapshot per twelve hours    1 year
-                86400    One snapshot per day             1 year
-                
-        If api_key or feed_id arguments are not set when calling this method then the
-        values set during this object's instantiation (ie. in __init__) are used.
+        Populate attributes from a dict
         """
-
-        if feed_id is None:
-            feed_id = self.feed_id
-                    
-        url = "%s/feeds/%s.%s" % (self.api_url, feed_id, format)
-        
-        if parameters:
-            params = urllib.urlencode(parameters)
-            url = "%s?%s" % (url, params)
-        
-        if api_key is None:
-            api_key = self.api_key
-            
-        headers = {'X-PachubeApiKey': api_key}
-        
-        d = self._get(url, headers)
-        d.addCallback(self._getResponseBody)
-        if format == DataFormats.JSON:
-            d.addCallback(self._convertJsonToDict)
-        return d        
-        
-        
-    def update_feed(self, api_key=None, feed_id=None, format=DataFormats.JSON, data=None):
-        """
-        Updates [environment ID]'s environment and datastreams. If successful, the 
-        current datastream values are stored and any changes in environment metadata
-        overwrite previous values. Pachube stores a server-side timestamp in the 
-        "updated" attribute and sets the feed to "live" if it wasn't before. 
-
-        @param api_key: An api key with authorization settings allowing this action to be performed
-        @type api_key: string
-        @param feed_id: The feed identifier
-        @type feed_id: string
-        @param format: The format to request the results in [json|xml|csv]
-        @type format: string
-        @param data: A representation of the feed in the appropriate format.
-        @type data: string
-        
-        @return: A deferred that returns the success of the update based on
-                 the response header data. 
-        @rtype: boolean
-
-        If api_key or feed_id arguments are not set when calling this method then the
-        values set during this object's instantiation (ie. in __init__) are used.                
-        """
-        if feed_id is None:
-            feed_id = self.feed_id
-                    
-        url = "%s/feeds/%s.%s" % (self.api_url, feed_id, format)
-        
-        if api_key is None:
-            api_key = self.api_key
-            
-        headers = {'X-PachubeApiKey': api_key}
-
-        d = self._put(url, headers, data)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d
-
-
-    def delete_feed(self, api_key=None, feed_id=None):
-        """
-        The DELETE request does not require a format to be used. A request made to 
-        this URL will delete the object referred to by the ID. 
-        WARNING: This is final and cannot be undone.
-
-        @param api_key: An api key with authorization settings allowing this action to be performed
-        @type api_key: string
-        @param feed_id: The feed identifier
-        @type feed_id: string
-        
-        @return: A deferred that returns the success of the delete based on
-                 the response header data. 
-        @rtype: boolean
-
-        If api_key or feed_id arguments are not set when calling this method then the
-        values set during this object's instantiation (ie. in __init__) are used.      
-        """
-        if feed_id is None:
-            feed_id = self.feed_id
-                    
-        url = "%s/feeds/%s" % (self.api_url, feed_id)
-        
-        if api_key is None:
-            api_key = self.api_key
-            
-        headers = {'X-PachubeApiKey': api_key,
-                   'Content-Type' : self._getContentType(format)}
-
-        d = self._delete(url, headers)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d
-
-
-    #
-    # Datastreams
-    #
-    
-    def create_datastreams(self, api_key=None, feed_id=None, format=DataFormats.JSON, data=None):
-        """
-        Creates a new datastream in environment [feed ID]. The body of the request 
-        should contain a JSON, XML or CSV representation of the datastream to be created.
-        
-        @param api_key: An api key with authorization settings allowing this action to be performed
-        @type api_key: string
-        @param feed_id: The feed identifier
-        @type feed_id: string
-        @param format: The format to request the results in [json|xml|csv]
-        @type format: string
-        @param data: A representation of the datastream in the appropriate format.
-        @type data: string
-        
-        @return: A deferred that returns the success of the create based on
-                 the response header data. 
-        @rtype: boolean
-        
-        If api_key or feed_id arguments are not set when calling this method then the
-        values set during this object's instantiation (ie. in __init__) are used.
-        """       
-        if feed_id is None:
-            feed_id = self.feed_id
-                    
-        url = "%s/feeds/%s/datastreams.%s" % (self.api_url, feed_id, format)
-        
-        if api_key is None:
-            api_key = self.api_key
-            
-        headers = {'X-PachubeApiKey': api_key}
-
-        d = self._post(url, headers, data)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d
-           
-        
-    def read_datastreams(self, api_key=None, feed_id=None, datastream_id=None, format=DataFormats.JSON, parameters=None): 
-        """
-        Read the requested datastream.
-
-        @param api_key: An api key with authorization settings allowing this action to be performed
-        @type api_key: string
-        @param feed_id: The feed identifier
-        @type feed_id: string
-        @param datastream_id: A datastream identifier
-        @type datastream_id: string
-        @param format: The format to request the results in [json|xml|csv|png]
-        @type format: string
-        @param parameters: Additional parameters to configure the png output.
-        @type parameters: dict
-
-        @return: A deferred that returns the response body which is the feed
-                 (environment) with on the requested datastream
-        @rtype: string (in the format specified by the format argument)
-            
-            
-        Available settings for parameters supporting historical queries:  
-        start: 
-            Defines the starting point of the query as a timestamp, 
-            e.g. 2010-05-20T11:01:46Z. The default value is blank.
-
-        end: 
-        Defines the end point of the data returned as a timestamp, 
-        e.g. 2010-05-21T11:01:46Z. The default value is set to the current timestamp.
-
-        duration:
-            Specifies the duration of the query.
-            If used in conjunction with end it will request the data prior to the end date.
-            If used in conjunction with start it will request the data after the start date.
-            If used by itself it will give the most recent data for the duration specified.
-            It is incorrect to specify start, end and duration
-
-            The format is <number><time unit> e.g. 10minutes, 6hours
-
-            The valid time units are:
-            seconds
-            minute(s)
-            hour(s)
-            day(s)
-            week(s)
-            month(s)
-            year(s)
-
-        page: 
-            Defines which page we are looking at of the matching results. 
-            If not set, the default value is 1
-
-        per_page: 
-            Defines how many results are returned per page. 
-            If not set this value defaults to 100. Maximum value is 1000
-
-        time: 
-            Returns the feed with the values as they were at the specified timestamp. 
-            There are a few points to note about this functionality:
-                Only the values of the datastream and their timestamps are changed, 
-                all other metadata reflects the current state of the feed and its datastreams
-                If a datastream had no values at the time specified (either because it didn't
-                exist or because it hadn't been updated) it will be excluded from the output
-        
-        find_previous:
-            Will also return the previous value to the date range being requested. 
-            Note that this is useful for any graphing because if you want to draw a graph of 
-            the date range you specified you would end up with a small gap until the first value.
-
-        interval_type:
-            If set to "discrete" the data will be returned in fixed time interval format 
-            according to the inverval value supplied. If this is not set, the raw datapoints
-            will be returned.
-
-        interval: 
-            Determines what interval of data is requested and is defined in seconds between
-            the datapoints. If a value is passed in which does not match one of these values, 
-            it is rounded up to the next value. 
-            The acceptable values are currently:
-                Value    Description                     Maximum range in one query
-                0        Every snapshot stored            6 hours
-                30       30 second interval data          12 hours
-                60       One snapshot every minute        24 hours
-                300      One snapshot every 5 minutes     5 days
-                900      One snapshot every 15 minutes    14 days
-                3600     One snapshot per hour            31 days
-                10800    One snapshot per three hours     90 days
-                21600    One snapshot per six hours       180 days
-                43200    One snapshot per twelve hours    1 year
-                86400    One snapshot per day             1 year
-
-
-        This request can also make use of the PNG format.
-        
-        Requesting the datastram as a PNG image will generate a graph. The time 
-        period that is shown is controlled by the history parameters passed to 
-        the request and the look and feel of this graph can be controlled by the
-        following parameters:
-        
-        Parameter    Description    Example
-        w    width in pixels         600
-        h    height in pixels        400
-        c    colour in hex           FFCC33
-        t    title                   My Favourite Graph
-        l    legend                  Legend For My Graph
-        s    strokesize in pixels    4
-        b    show axis labels        true / false
-        g    show detailed grid      true / false
-        
-        If api_key or feed_id arguments are not set when calling this method then the
-        values set during this object's instantiation (ie. in __init__) are used.
-        """
-        if feed_id is None:
-            feed_id = self.feed_id
-                    
-        url = "%s/feeds/%s/datastreams/%s.%s" % (self.api_url, feed_id, datastream_id, format)
-        
-        if parameters:
-            params = urllib.urlencode(parameters)
-            url = "%s?%s" % (url, params)
-        
-        if api_key is None:
-            api_key = self.api_key
-            
-        headers = {'X-PachubeApiKey': api_key}
-        
-        d = self._get(url, headers)
-        d.addCallback(self._getResponseBody)
-        if format == DataFormats.JSON:
-            d.addCallback(self._convertJsonToDict)
-        return d
-         
-        
-    def update_datastream(self, api_key=None, feed_id=None, datastream_id=None, format=DataFormats.JSON, data=None):
-        """
-        Update a single datastream
-
-        @param api_key: An api key with authorization settings allowing this action to be performed
-        @type api_key: string
-        @param feed_id: The feed identifier
-        @type feed_id: string
-        @param datastream_id: A datastream identifier
-        @type datastream_id: string
-        @param format: The format to request the results in [json|xml|csv]
-        @type format: string
-        @param data: A representation of the datastream in the appropriate format.
-        @type data: string
-        
-        @return: A deferred that returns the success of the create based on
-                 the response header data. 
-        @rtype: boolean
-        
-        If api_key or feed_id arguments are not set when calling this method then the
-        values set during this object's instantiation (ie. in __init__) are used.        
-        """
-        if feed_id is None:
-            feed_id = self.feed_id
-                    
-        url = "%s/feeds/%s/datastreams/%s.%s" % (self.api_url, feed_id, datastream_id, format)
-        
-        if api_key is None:
-            api_key = self.api_key
-            
-        headers = {'X-PachubeApiKey': api_key}
-
-        d = self._put(url, headers, data)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d        
-        
-        
-    def delete_datastream(self, api_key=None, feed_id=None, datastream_id=None): 
-        """
-        The DELETE request does not require a format to be used. A request made to 
-        this URL will delete the object referred to by the ID. 
-        WARNING: This is final and cannot be undone.
-
-        @param api_key: An api key with authorization settings allowing this action to be performed
-        @type api_key: string
-        @param feed_id: The feed identifier
-        @type feed_id: string
-        @param datastream_id: A datastream identifier
-        @type datastream_id: string
-        
-        @return: A deferred that returns the success of the delete based on
-                 the response header data. 
-        @rtype: boolean
-
-        If api_key or feed_id arguments are not set when calling this method then the
-        values set during this object's instantiation (ie. in __init__) are used.       
-        """
-        if feed_id is None:
-            feed_id = self.feed_id
-                    
-        url = "%s/feeds/%s/datastreams/%s" % (self.api_url, feed_id, datastream_id)
-        
-        if api_key is None:
-            api_key = self.api_key
-            
-        headers = {'X-PachubeApiKey': api_key}
-
-        d = self._delete(url, headers)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d
-    
-    
-    #    
-    # Datapoints
-    #
-    
-    
-    def create_datapoints(self, api_key=None, feed_id=None, datastream_id=None, format=DataFormats.JSON, data=None):
-        """
-        Creates new datapoints for datastream. The body of the request 
-        should contain a JSON, XML or CSV representation of the datastream to be created.
-
-        This enables you to insert datapoints into the history of the datastream. 
-        Datapoints should have a unique timestamp, which can to be specified down to
-        the sub-second level. Sending new datapoints with the same timestamp as 
-        existing ones will overwrite the old data with the new. If a single update 
-        contains multiple values with the same timestamp (along with other records), 
-        then the result will be datapoints recorded for all unique timestamps, but for
-        any duplicated ones, we will only record the last record processed.
-
-        Currently you can only send a maximum of 500 datapoints in a single update. 
-        Attempting to send more than that will result in an error, and in that case none
-        of your datapoints will be stored.
-        
-        @param api_key: An api key with authorization settings allowing this action to be performed
-        @type api_key: string
-        @param feed_id: The feed identifier
-        @type feed_id: string
-        @param datastream_id: A datastream identifier
-        @type datastream_id: string
-        @param format: The format to request the results in [json|xml|csv]
-        @type format: string
-        @param data: A representation of the datastream in the appropriate format.
-        @type data: string
-        
-        @return: A deferred that returns the success of the create based on
-                 the response header data. 
-        @rtype: boolean
-        
-        If api_key or feed_id arguments are not set when calling this method then the
-        values set during this object's instantiation (ie. in __init__) are used.
-        """       
-        if feed_id is None:
-            feed_id = self.feed_id
-                    
-        url = "%s/feeds/%s/datastreams/%s/datapoints.%s" % (self.api_url, feed_id, datastream_id, format)
-        
-        if api_key is None:
-            api_key = self.api_key
-            
-        headers = {'X-PachubeApiKey': api_key}
-
-        d = self._post(url, headers, data)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d
-    
-    
-    def read_datapoint(self, api_key=None, feed_id=None, datastream_id=None, format=DataFormats.JSON, timestamp=None): 
-        """
-        Read a specific datapoint from the specified timestamp.
-
-        @param api_key: An api key with authorization settings allowing this action to be performed
-        @type api_key: string
-        @param feed_id: The feed identifier
-        @type feed_id: string
-        @param datastream_id: A datastream identifier
-        @type datastream_id: string
-        @param format: The format to request the results in [json|xml|csv|png]
-        @type format: string
-        @param timestamp: An ISO8601 formatted datapoint timestamp
-        @type timestamp: string
-
-        @return: A deferred that returns the response body which is the datapoint
-                 details at the specified timestamp
-        @rtype: string (in the format specified by the format argument)
-        
-        If api_key or feed_id arguments are not set when calling this method then the
-        values set during this object's instantiation (ie. in __init__) are used.
-        """
-        if feed_id is None:
-            feed_id = self.feed_id
-                    
-        url = "%s/feeds/%s/datastreams/%s/datapoints/%s.%s" % (self.api_url, feed_id, datastream_id, timestamp, format)
-
-        
-        if api_key is None:
-            api_key = self.api_key
-            
-        headers = {'X-PachubeApiKey': api_key}
-        
-        d = self._get(url, headers)
-        d.addCallback(self._getResponseBody)
-        if format == DataFormats.JSON:
-            d.addCallback(self._convertJsonToDict)
-        return d
-    
-    
-    def update_datapoint(self, api_key=None, feed_id=None, datastream_id=None, format=DataFormats.JSON, timestamp=None, data=None):
-        """
-        Modify the value of a datapoint at the specified timestamp
-
-        @param api_key: An api key with authorization settings allowing this action to be performed
-        @type api_key: string
-        @param feed_id: The feed identifier
-        @type feed_id: string
-        @param datastream_id: A datastream identifier
-        @type datastream_id: string
-        @param format: The format to request the results in [json|xml|csv|png]
-        @type format: string
-        @param timestamp: An ISO8601 formatted datapoint timestamp
-        @type timestamp: string
-        @param data: A representation of the updated datapoint in the appropriate format.
-        @type data: string
-        
-        @return: A deferred that returns the response body which is the datapoint
-                 details at the specified timestamp
-        @rtype: string (in the format specified by the format argument)
-        
-        If api_key or feed_id arguments are not set when calling this method then the
-        values set during this object's instantiation (ie. in __init__) are used.        
-        """
-        if feed_id is None:
-            feed_id = self.feed_id
-                    
-        url = "%s/feeds/%s/datastreams/%s/datapoints/%s.%s" % (self.api_url, feed_id, datastream_id, timestamp, format)
-        
-        if api_key is None:
-            api_key = self.api_key
-            
-        headers = {'X-PachubeApiKey': api_key}
-
-        d = self._put(url, headers, data)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d        
-    
-
-    def delete_datapoint(self, api_key=None, feed_id=None, datastream_id=None, timestamp=None):
-        """
-        Delete a single datapoint at the specified timestamp.
-        This request does not require a format to be used.
-        
-        @param api_key: An api key with authorization settings allowing this action to be performed
-        @type api_key: string
-        @param feed_id: The feed identifier
-        @type feed_id: string
-        @param datastream_id: A datastream identifier
-        @type datastream_id: string
-        @param timestamp: An ISO8601 formatted datapoint timestamp
-        @type parameters: string
-
-        @return: A deferred that returns the success of the create based on
-                 the response header data. 
-        @rtype: boolean
-        
-        If api_key or feed_id arguments are not set when calling this method then the
-        values set during this object's instantiation (ie. in __init__) are used.        
-        """
-        if feed_id is None:
-            feed_id = self.feed_id
-                    
-        url = "%s/feeds/%s/datastreams/%s/datapoints/%s" % (self.api_url, feed_id, datastream_id, timestamp)
-        
-        if api_key is None:
-            api_key = self.api_key
-            
-        headers = {'X-PachubeApiKey': api_key}
-
-        d = self._delete(url, headers)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d
-    
-        
-    def delete_datapoints(self, api_key=None, feed_id=None, datastream_id=None, parameters=None): 
-        """
-        Remove a range of datapoints for this datastream.
-        This request does not require a format to be used
-        
-        By providing a start and end timestamp as query parameters, you may remove a all 
-        datapoints that lie between those dates. 
-        If you send your request with only a start timestamp, all datapoints after the 
-        value will be removed. 
-        Likewise, providing an end timestamp will remove all datapoints prior to the 
-        supplied value. 
-        Additionally this endpoint supports a duration parameter (e.g. "duration=3hours") 
-        that will delete all datapoints from a start timestamp to the start timestamps + 
-        duration if a start parameter is provided, or from an end timestamp to the end 
-        timestamp - duration if an end parameter is provided.
-        
-        Available settings for parameters:
-        start
-            Define the start time (in ISO8601 format) from which to begin deleting
-            datapoints.
-            http://api.pachube.com/v2/feeds/1977/datastreams?start=2010-05-20T11:01:46.000000Z
-            
-        end
-            Define the end time (in ISO8601 format) at which to stop deleting
-            datapoints.
-            http://api.pachube.com/v2/feeds/1977/datastreams?end=2011-05-20T11:01:46.000000Z
-            http://api.pachube.com/v2/feeds/1977/datastreams?start=2010-05-20T11:01:46.000000Zend=2011-05-20T11:01:46.000000Z
-            
-        duration
-            Define a duration across which to delete datapoints. 
-            When used with a start time then datapoints from the start timestamp to the 
-            start timestamps + duration will be deleted.
-            When used with an end time then datapoints from the end timestamp to the 
-            end timestamp - duration will be deleted.
-            http://api.pachube.com/v2/feeds/1977/datastreams?start=2010-05-20T11:01:46.000000Z&duration=3days
-            
+        for attribute in self._attributes:
+            attribute_value = inDict.get(attribute, None)
+            if attribute_value:
+                if attribute == DataFields.Disposition:
+                    if attribute_value not in Location.Valid_Disposition_Kinds:
+                        raise Exception("Invalid disposition \'%s\' not in %s" % (attribute_value,
+                                                                                  Location.Valid_Disposition_Kinds))
+                if attribute == DataFields.Domain:
+                    if attribute_value not in Location.Valid_Domain_Kinds:
+                        raise Exception("Invalid domain \'%s\' not in %s" % (attribute_value,
+                                                                             Location.Valid_Domain_Kinds))
                         
-        @param api_key: An api key with authorization settings allowing this action to be performed
-        @type api_key: string
-        @param feed_id: The feed identifier
-        @type feed_id: string
-        @param datastream_id: A datastream identifier
+                if attribute == DataFields.Exposure:
+                    if attribute_value not in Location.Valid_Exposure_Kinds:
+                        raise Exception("Invalid exposure \'%s\' not in %s" % (attribute_value,
+                                                                               Location.Valid_Exposure_Kinds))
+                        
+                setattr(self, attribute, attribute_value)
+        
+
+    def toXml(self, parent=None):
+        """ 
+        Return the object as an xml ElementTree 
+        
+        @param parent: The parent element
+        @type parent: etree.Element
+        
+        @return: XML representation of the object
+        @rtype: etree.Element
+        """
+        location = etree.Element(DataFields.Location)
+        if self.domain:
+            location.attrib[DataFields.Domain] = self.domain
+        if self.exposure:
+            location.attrib[DataFields.Exposure] = self.exposure
+        if self.disposition:
+            location.attrib[DataFields.Disposition] = self.disposition                
+        
+        if self.name:
+            name = etree.SubElement(location, DataFields.Name)
+            name.text = self.name
+        if self.lat:
+            lat = etree.SubElement(location, DataFields.Latitude)
+            lat.text = str(self.lat)                
+        if self.lon:
+            lon = etree.SubElement(location, DataFields.Longitude)
+            lon.text = str(self.lon)
+        if self.ele:
+            ele = etree.SubElement(location, DataFields.Elevation)
+            ele.text = str(self.ele)
+                            
+        return location      
+
+    
+        
+    def fromXml(self, element):
+        """
+        Populate attributes from a XML etree
+        
+        @param xml: an xml element tree
+        @type xml: etree.Element
+        """
+        location = element.find(DataFields.Location)
+        if location is not None:
+            domain = location.attrib.get(DataFields.Domain, None)
+            if domain:
+                self.domain = domain
+            exposure = location.attrib.get(DataFields.Exposure, None)
+            if exposure:
+                self.exposure = exposure
+            disposition = location.attrib.get(DataFields.Disposition, None)
+            if disposition:
+                self.disposition = disposition
+            
+            name = location.find(DataFields.Name)
+            if name is not None:
+                self.name = name.text
+                
+            latitude = location.find(DataFields.Latitude)
+            if latitude is not None:
+                self.lat = float(latitude.text)
+                
+            logitude = location.find(DataFields.Longitude)
+            if logitude is not None:
+                self.lon = float(logitude.text)
+                
+            elevaltion = location.find(DataFields.Elevation)
+            if elevaltion is not None:
+                self.ele = elevaltion.text                
+   
+    
+    
+class Datastream(DataStructure):
+    """ Models a datastream structure within an environment """
+    
+    def __init__(self, **kwargs):
+        self._attributes = [DataFields.At,
+                            DataFields.Current_Value,
+                            DataFields.Datapoints,
+                            DataFields.Id,
+                            DataFields.Maximum_Value,
+                            DataFields.Minimum_Value,
+                            DataFields.Tags,
+                            DataFields.Unit]
+        self.at = None
+        self.current_value = None
+        self.datapoints = []
+        self.id = None
+        self.max_value = None
+        self.min_value = None
+        self.tags = []
+        self.unit = None
+
+        # initialise attributes to specified values.
+        self.fromDict(kwargs)
+
+
+    def toDict(self):
+        """ 
+        Return the data structure object as a dict. This method is used as 
+        a helper function for JSON serialization/deserialization.
+        """
+        datastreamDict = dict()
+        for attribute in self._attributes:
+            attribute_value = getattr(self, attribute, None)
+            if attribute_value:                    
+                if attribute == DataFields.Datapoints:
+                    datapoints = attribute_value
+                    datastreamDict[attribute] = list()
+                    for datapoint in datapoints:
+                        datastreamDict[attribute].append(datapoint.toDict())
+                
+                elif attribute == DataFields.Unit:
+                    unit = attribute_value
+                    datastreamDict[attribute] = unit.toDict()
+                else:
+                    datastreamDict[attribute] = str(attribute_value)
+        return datastreamDict
+    
+    
+    def fromDict(self, inDict):
+        """
+        Populate attributes from a dict
+        """
+        for attribute in self._attributes:
+            attribute_value = inDict.get(attribute, None)
+            if attribute_value:
+                if attribute == DataFields.Datapoints:
+                    if not hasattr(self, DataFields.Datapoints):
+                        setattr(self, attribute, list())
+                    datapoints = getattr(self, DataFields.Datapoints)
+                    datapoints_list = attribute_value
+                    for datapointsKwargs in datapoints_list:
+                        datapoints.append(Datapoint(**datapointsKwargs))
+                    setattr(self, attribute, datapoints)
+                    
+                elif attribute == DataFields.Unit:
+                    unitKwargs = attribute_value
+                    setattr(self, attribute, Unit(**unitKwargs))
+                else:
+                    setattr(self, attribute, attribute_value)
+    
+    
+    def toXml(self, parent=None):
+        """ 
+        Return the object as an xml ElementTree 
+        
+        @param parent: The parent element
+        @type parent: etree.Element
+        
+        @return: XML representation of the object
+        @rtype: etree.Element
+        """
+        data = etree.Element(DataFields.Data)
+        data.attrib[DataFields.Datastream_Id] = str(self.id)
+        
+        if self.tags:
+            for tag_label in self.tags:
+                tag = etree.SubElement(data, DataFields.Tag)
+                tag.text = tag_label
+                
+        if self.current_value:
+            current_value = etree.SubElement(data, DataFields.Current_Value)
+            current_value.text = str(self.current_value)
+            
+        if self.max_value:
+            max_value = etree.SubElement(data, DataFields.Maximum_Value)
+            max_value.text = str(self.max_value)
+        
+        if self.min_value:
+            min_value = etree.SubElement(data, DataFields.Minimum_Value)
+            min_value.text = str(self.min_value)
+                        
+        if self.unit:
+            data.append(self.unit.toXml())
+            
+        if self.datapoints:
+            datapoints = etree.SubElement(data, DataFields.Datapoints)
+            for datapoint in self.datapoints:
+                datapoints.append(datapoint.toXml())
+                                  
+        return data
+    
+        
+    def fromXml(self, element):
+        """
+        Populate attributes from a XML etree
+        
+        @param xml: an xml element tree
+        @type xml: etree.Element
+        """
+        data = element.find(DataFields.Data)
+        if data is not None:
+            id = data.attrib.get(DataFields.Datastream_Id, None)
+            if id:
+                self.id = id
+            
+            if data.find(DataFields.Tag) is not None:
+                self.tags = []
+                for tag in data.findall(DataFields.Tag):
+                    self.tags.append(tag.text)
+                    
+            current_value = data.find(DataFields.Current_Value)
+            if current_value is not None:
+                self.current_value = current_value
+                at_time = current_value.attrib.get(DataFields.At, None)
+                if at_time:
+                    self.at = at_time
+                
+            max_value = data.find(DataFields.Maximum_Value)
+            if max_value is not None:
+                self.max_value = max_value           
+
+            min_value = data.find(DataFields.Minimum_Value)
+            if min_value is not None:
+                self.min_value = min_value
+            
+            unit = data.find(DataFields.Unit)
+            if unit is not None:
+                self.unit = Unit()
+                self.unit.fromXml(unit)
+                
+                
+            datapoints = data.find(DataFields.Datapoints)
+            if datapoints is not None:
+                self.datapoints = []
+                for value in datapoints.findall(DataFields.Value):
+                    d = Datapoint()
+                    d.fromXml(value)
+                    self.datapoints.append(datapoint)            
+
+
+    def setCurrentValue(self, value):
+        """
+        Set the current value of the datastream.
+        
+        @param value: the current value for the datastream
+        @type value: string
+        """
+        self.current_value = value
+
+
+
+    def addDatapoint(self, timestamp, value):
+        """
+        Add a historical datapoint to the datastream.
+
+        @param timestamp: An timestamp in ISO8601 format
+        @type timestamp: string
+        @param value: the current value for the datastream
+        @type value: string
+        """
+        inDict = {DataFields.At : timestamp, DataFields.Value : value}
+        self.datapoints.append(Datapoint(**inDict))
+          
+        
+    def clear(self):
+        """
+        Clear current value and datapoints. This method is called
+        after Pachube has been updated with the current contents.
+        """
+        self.current_value = None
+        del self.datapoints[:]
+        
+        
+                              
+class Environment(DataStructure):
+    """ Models a Pachube Environment (feed) object """
+
+
+    def __init__(self, **kwargs):
+        self._attributes = [DataFields.Creator,
+                            DataFields.Datastreams,
+                            DataFields.Description,
+                            DataFields.Feed,
+                            DataFields.Icon,
+                            DataFields.Id,
+                            DataFields.Location,
+                            DataFields.Private,
+                            DataFields.Status,
+                            DataFields.Tags,
+                            DataFields.Title,
+                            DataFields.Updated,
+                            DataFields.Version,
+                            DataFields.Website]
+        self.creator = None
+        self.datastreams = {}
+        self.description = None
+        self.feed = None
+        self.icon = None
+        self.id = None
+        self.location = None
+        self.private = None
+        self.status = None
+        self.tags = None
+        self.title = None
+        self.updated = None
+        self.version = version
+        self.website = None
+
+        # initialise attributes to specified values.
+        self.fromDict(kwargs)
+
+
+
+    def toDict(self):
+        """ 
+        Return the data structure object as a dict. This method is used as 
+        a helper function for JSON serialization/deserialization.
+        """
+        environmentDict = dict()
+        for attribute in self._attributes:
+            attribute_value = getattr(self, attribute, None)
+            if attribute_value:
+                if attribute == DataFields.Id:
+                    environmentDict[attribute] = attribute_value
+                    
+                elif attribute == DataFields.Location:
+                    environmentDict[attribute] = self.location.toDict()
+                
+                elif attribute == DataFields.Datastreams:
+                    datastreams = []
+                    for datastream_id, datastream in self.datastreams.items():
+                        datastreams.append(datastream.toDict())
+                        environmentDict[DataFields.Datastreams] = datastreams
+                else:
+                    environmentDict[attribute] = str(attribute_value)
+        return environmentDict
+    
+
+    def fromDict(self, inDict):
+        """
+        Populate attributes from a dict
+        """
+        for attribute in self._attributes:
+            attribute_value = inDict.get(attribute, None)
+            if attribute_value:
+
+                if attribute == DataFields.Location:
+                    locationKwargs = attribute_value
+                    setattr(self, attribute, Location(**locationKwargs))
+                    
+                elif attribute == DataFields.Datastreams:
+                    if not hasattr(self, DataFields.Datastreams):
+                        setattr(self, attribute, dict())
+                    datastreams = getattr(self, DataFields.Datastreams)
+                    datastreamsKwargs = attribute_value
+                    for datastreamKwargs in datastreamsKwargs:
+                        datastream = Datastream(**datastreamKwargs)
+                        datastreams[datastream.id] = datastream
+    
+                else:
+                    setattr(self, attribute, attribute_value)
+    
+    
+    def toXml(self):
+        """ 
+        Return the object as an xml ElementTree
+        
+        @return: XML representation of the object
+        @rtype: etree.Element
+        """
+        env = etree.Element(DataFields.Environment)
+        if self.creator:
+            env.attrib[DataFields.Creator] = str(self.creator)
+        if self.id:
+            env.attrib[DataFields.Id] = str(self.id)
+        if self.updated: 
+            env.attrib[DataFields.Updated] = str(self.updated)
+            
+        if self.description:
+            desc = etree.SubElement(env, DataFields.Description)
+            desc.text = str(self.description)
+        if self.feed:
+            feed = etree.SubElement(env, DataFields.Feed)
+            feed.text = str(self.feed)
+        if self.icon:
+            icon = etree.SubElement(env, DataFields.Icon)
+            icon.text = str(self.icon)
+        if self.private:
+            private = etree.SubElement(env, DataFields.Private)
+            private.text = str(self.private)
+        if self.status:
+            status = etree.SubElement(env, DataFields.Status)
+            status.text = str(self.status)
+        if self.tags:
+            for tag_text in self.tags:
+                tag = etree.SubElement(env, DataFields.Tag)
+                desc.text = str(tag_text)
+        if self.title:
+            title = etree.SubElement(env, DataFields.Title)
+            title.text = str(self.title)
+        if self.version:
+            version = etree.SubElement(env, DataFields.Version)
+            version.text = str(self.version)                
+        if self.website:
+            website = etree.SubElement(env, DataFields.Website)
+            website.text = str(self.website) 
+                            
+        if self.location:
+            env.append(self.location.toXml())
+         
+        if self.datastreams:
+            for datastream_id, datastream in self.datastreams.items():
+                env.append(datastream.toXml())
+                
+        return env
+                    
+
+    
+        
+    def fromXml(self, element):
+        """
+        Populate attributes from a XML etree
+        
+        @param xml: an xml element tree
+        @type xml: etree.Element
+        """
+        environment = element.find(DataFields.Environment)
+        if environment is not None:
+            creator = environment.attrib.get(DataFields.Creator, None)
+            if creator:
+                self.creator = creator
+            id = environment.attrib.get(DataFields.Id, None)
+            if id:
+                self.id = id
+            updated = environment.attrib.get(DataFields.Updated, None)
+            if updated:
+                self.updated = updated 
+                
+            description = environment.find(DataFields.Description, None)
+            if description is not None:
+                self.description = description
+            feed = environment.find(DataFields.Feed, None)
+            if feed is not None:
+                self.feed = feed.text
+            icon = environment.find(DataFields.Icon, None)
+            if icon is not None:
+                self.icon = icon.text
+            private = environment.find(DataFields.Private, None)
+            if private is not None:
+                self.private = private.text
+            status = environment.find(DataFields.Status, None)
+            if status is not None:
+                self.status = status.text
+            tag = environment.find(DataFields.Tag, None)
+            if tag is not None:
+                self.tags = []
+                for tag in environment.findall(DataFields.Tag):
+                    self.tags.append(tag.text)
+            title = environment.find(DataFields.Title, None)
+            if title is not None:
+                self.title = title.text
+            version = environment.find(DataFields.Version, None)
+            if version is not None:
+                self.version = version.text
+            website = environment.find(DataFields.Website, None)
+            if website is not None:
+                self.website = website.text
+                
+            location = environment.find(DataFields.Location)
+            if location is not None:
+                loc = Location()
+                loc.fromXml(location)
+                self.location = loc
+            
+            data_element = environment.find(DataFields.Data)
+            if data_element is not None:
+                self.datastreams = []
+                for datastream in environment.findall(DataFields.Data):
+                    ds = Datastream()
+                    ds.fromXml(datastream)
+                    self.datastreams.append(ds)
+                    
+
+
+    def setCurrentValue(self, datastream_id, value):
+        """
+        Set the current value for a datastream.
+        
+        @param datastream_id: The identifier of the datastream to be updated
         @type datastream_id: string
-        @param parameters: Additional parameters to configure the png output.
-        @type parameters: dict
-        
-        @return: A deferred that returns the success of the create based on
-                 the response header data. 
-        @rtype: boolean
-        
-        If api_key or feed_id arguments are not set when calling this method then the
-        values set during this object's instantiation (ie. in __init__) are used.
+        @param value: The current value for the datastream
+        @type value: string
         """
-        if feed_id is None:
-            feed_id = self.feed_id
-                    
-        url = "%s/feeds/%s/datastreams/%s/datapoints" % (self.api_url, feed_id, datastream_id)
+        if datastream_id not in self.datastreams:
+            inDict = {DataFields.Id : datastream_id}
+            self.datastreams[datastream_id] = Datastream(**inDict)
+        datastream = self.datastreams[datastream_id]
+        datastream.setCurrentValue(value)
 
-        if parameters:
-            params = urllib.urlencode(parameters)
-            url = "%s?%s" % (url, params)
-                    
-        if api_key is None:
-            api_key = self.api_key
-            
-        headers = {'X-PachubeApiKey': api_key}
+    def addDatapoint(self, datastream_id, at_time, value):
+        """
+        Set a datepoint in a datastream.
+        
+        @param datastream_id: The identifier of the datastream to be updated
+        @type datastream_id: string
+        @param at_time: The timestamp for the datapoint, in ISO8601 format
+        @type at_time: string
+        @param value: The current value for the datastream
+        @type value: string
+        """
+        if datastream_id not in self.datastreams:
+            inDict = {DataFields.Id : datastream_id}
+            self.datastreams[datastream_id] = Datastream(**inDict)
+        datastream = self.datastreams[datastream_id]
+        datastream.addDatapoint(at_time, value)
+        
+    
+    def setLocation(self, name=None, exposure=None, domain=None, disposition=None,
+                    latitude=None, longitude=None, elevation=None):
+        """
+        Set the location data for this environment
+        
+        @param name: The name of the location
+        @type name: string
+        @param exposure: Defines the exposure of the environment. Use 
+                         constants from the Location data structure:
+                         eg. Location.Outdoor | lLocation.Indoor
+        @type exposure: string
+        @param domain: Defines the domain of the enviromnment. Use  
+                       constants from the Location data structure:
+                       Location.Physical | Location.Virtual
+        @type domain: string
+        @param disposition: Defines the disposition of the enviromnment. Use
+                            constants from the Location data structure:
+                            Location.Fixed | Location.Mobile
+        @type name: string
+        @param latitude: The latitude of the environment
+        @type latitude: float
+        @param longitude: The longitude of the environment
+        @type longitude: float
+        @param elevation: The elevation of the environment
+        @type elevation: float 
+        """
+        locationKwargs = dict()
+        if name:
+            locationKwargs[DataFields.Name] = name
+        if exposure:
+            locationKwargs[DataFields.Exposure] = exposure
+        if domain:
+            locationKwargs[DataFields.Domain] = domain
+        if disposition:
+            locationKwargs[DataFields.Disposition] = disposition
+        if latitude:
+            locationKwargs[DataFields.Latitude] = latitude
+        if longitude:
+            locationKwargs[DataFields.Longitude] = longitude
+        if elevation:
+            # elevation is stored internally as a string
+            locationKwargs[DataFields.Elevation] = "%.1f" % elevation
+        self.location = Locaiton(**locationKwargs)
 
-        d = self._delete(url, headers)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d
+
+
+class EnvironmentList(DataStructure):
+    """ Models a Pachube Environment (feed) list object """
     
-           
-    #
-    # Triggers
-    #
-    
-    
-    def list_triggers(self, api_key=None, format=DataFormats.JSON):
+    def __init__(self, **kwargs):
+        
+        self.total_results = None
+        self.feeds = []
+
+        # initialise attributes to specified values.
+        self.fromDict(kwargs)        
+        
+          
+    def toDict(self):
         """ 
-        Retrieve a list of all triggers for the authenticated account
+        Return the data structure object as a dict. This method is used as 
+        a helper function for JSON serialization/deserialization.
+        """
+        environmentListDict = dict()
+        environmentListDict[DataFields.Total_Results] = self.total_results
+        results = []
+        for feed in self.feeds:
+            results.append(feed.toDict())
+        environmentListDict[DataFields.Results] = results
+        
+        return environmentListDict
+        
+    
+    def fromDict(self, inDict):
+        """
+        Populate attributes from a dict
+        """
+        total_results = inDict.get(DataFields.Total_Results, None)
+        if total_results:
+            self.total_results = total_results
+        
+        results = inDict.get(DataFields.Results, None)
+        if results:
+            self.feeds = []
+            for result in results:
+                self.feeds.append(Environment(**result))
+    
 
-        @param api_key: An api key with authorization settings allowing this action to be performed
-        @type api_key: string
-        @param format: The format to request the results in [json|xml]
-        @type format: string
+    # The txPachube implementation never sends this structure to Pachube.
+    # It only ever receives environment lists from Pachube.
+    # Therefore toXml and encode methods are not required    
+    def toXml(self):
+        """ 
+        Return the object as an xml ElementTree
         
-        @return: A deferred that returns a list of triggers success of the create based on
-                 the response header data. 
-        @rtype: boolean
+        @return: XML representation of the object
+        @rtype: etree.Element
+        """
+        return None
+    
+
+    def fromXml(self, element):
+        """
+        Populate attributes from a XML etree
         
-        If api_key argument is not set when calling this method then the default value
-        set during this object's instantiation (ie. in __init__) is used.
-        """     
-        url = "%s/triggers.%s" % (self.api_url, format)
-        
-        if api_key is None:
-            api_key = self.api_key
+        @param xml: an xml element tree
+        @type xml: etree.Element
+        """
+        total_results = element.find('{%s}%s' % (namespace_map[OPENSEARCH_NAMESPACE], DataFields.Total_Results))
+        if total_results is not None:
+            self.total_results = total_results.text
             
-        headers = {'X-PachubeApiKey': api_key}
+        environment = element.find(DataFields.Environment)
+        if environment is not None:
+            self.feeds = []
+            for environment in element.findall(DataFields.Environment):
+                env = Environment()
+                env.fromXml(environment)
+                self.feeds.append(env)
+                
+            
+        
+    def encode(self, format=DataFormats.JSON):
+        """ 
+        Return a string representation of the object encoded in the specified format
+        """
+        # the txPachube implementation only ever receives environment lists from Pachube.
+        # It never sends them, hence this method is never used.
+        pass
 
-        d = self._get(url, headers)
-        d.addCallback(self._getResponseBody)
+    
+    
+    def decode(self, data, format=DataFormats.JSON):
+        """ 
+        Decode data, in the specified format, into local attributes
+        """
+        # The EnvironmentList object must specialise the decode method because it
+        # needs to obtain data from the eeml header which is stripped off in the 
+        # inherited implementation.
+        #
         if format == DataFormats.JSON:
-            d.addCallback(self._convertJsonToDict)
-        return d        
-            
-        
-    def create_trigger(self, api_key=None, format=DataFormats.JSON, data=None):
-        """
-        Create a trigger
-
-        @param api_key: An api key with authorization settings allowing this action to be performed
-        @type api_key: string
-        @param format: The format to request the results in [json|xml|csv|png]
-        @type format: string
-        @param data: Trigger definition in the appropriate format.
-        @type data: string
-        
-        @return: A deferred that returns the trigger_id of the newly created trigger. 
-        @rtype: string
-        
-        If api_key argument is not set when calling this method then the default value
-        set during this object's instantiation (ie. in __init__) is used.        
-        
-        """
-        def getTriggerIdFromLocation(location):
-            """
-            Extract and return the new trigger id from the 'Location' field in the response header.
-            """
-            trigger_id = location.split("/")[-1]
-            return trigger_id
+            inDict = json.loads(data)
+            self.fromDict(inDict)
                     
-        url = "%s/triggers.%s" % (self.api_url, format)
+        elif format == DataFormats.XML:
+            # parse xml string, rip off the eeml wrapper and process
+            # xml elements by handing off to fromXml method. All
+            # viewable (feed, datastream, datapoint) XML items come 
+            # wrapped in the eeml, environment    
+            element = etree.fromstring(data)
+            self.fromXml(element)
+
+        else:
+            raise Exception("Don't know how to decode %s using format %s" % (self.__class__.__name__,
+                                                                             format)) 
+
+class Trigger(DataStructure):
+    """ Models a Trigger item """
+    
+    def __init__(self, **kwargs):
+        self._attributes = [DataFields.Threshold_Value,
+                            DataFields.User,
+                            DataFields.Notified_At,
+                            DataFields.Url,
+                            DataFields.Trigger_Type,
+                            DataFields.Id,
+                            DataFields.Environment_Id,
+                            DataFields.Stream_Id]
+        self.threshold_value = None
+        self.user = None
+        self.notified_at = None
+        self.url = None
+        self.trigger_type = None
+        self.id = None
+        self.environment_id = None
+        self.stream_id = None
+
+        # initialise attributes to specified values or None.
+        self.fromDict(kwargs)
         
-        if api_key is None:
-            api_key = self.api_key
-            
-        headers = {'X-PachubeApiKey': api_key}
-               
-        d = self._post(url, headers, data)
-        d.addCallback(self._getLocationFromHeader)
-        d.addCallback(getTriggerIdFromLocation)
-        return d        
-        
-        
-    def read_trigger(self, api_key=None, trigger_id=None, format=DataFormats.JSON):
+
+    def toDict(self):
         """ 
-        Returns a representation of a trigger 
+        Return the data structure object as a dict. This method is used as 
+        a helper function for JSON serialization/deserialization.
+        """
+        triggerDict = dict()
+        for attribute in self._attributes:
+            attribute_value = getattr(self, attribute, None)
+            if attribute_value:
+                if attribute in [DataFields.Id, DataFields.Environment_Id]:
+                    triggerDict[attribute] = attribute_value
+                else:
+                    triggerDict[attribute] = str(attribute_value)
+        return triggerDict
+    
+    
+    def fromDict(self, inDict):
+        """
+        Populate attributes from a dict
+        """
+        for attribute in self._attributes:
+            attribute_value = inDict.get(attribute, None)
+            if attribute_value:
+                if attribute in [DataFields.Id, DataFields.Environment_Id]:
+                    int_value = int(attribute_value)
+                    setattr(self, attribute, attribute_value)
+                else:
+                    setattr(self, attribute, attribute_value)
+    
+    
+    def toXml(self, parent=None):
+        """ 
+        Return the object as an xml ElementTree 
         
-        @param api_key: An api key with authorization settings allowing this action to be performed
-        @type api_key: string
-        @param trigger_id: The trigger identifier
-        @type trigger_id: string
-        @param format: The format to request the results in [json|xml]
-        @type format: string
-        @param parameters: Additional parameters to configure the search query.
-        @type parameters: dict
+        @param parent: The parent element
+        @type parent: etree.Element
         
-        @return: A deferred that returns the response body which contains
-                 the representation of a trigger in the format specified 
-                 by the format argument.
-        @rtype: string
+        @return: XML representation of the object
+        @rtype: etree.Element
+        """
+        datastream_trigger = etree.Element(DataFields.Datastream_Trigger)
+        id = etree.SubElement(datastream_trigger, DataFields.Id)
+        id.attrib['type'] = 'integer'
+        id.text = str(self.id)
         
-        If api_key argument is not set when calling this method then the default value
-        set during this object's instantiation (ie. in __init__) is used.
-        """      
-        url = "%s/triggers/%s.%s" % (self.api_url, trigger_id, format)
+        if self.url:
+            url = etree.SubElement(datastream_trigger, DataFields.Url)
+            url.text = self.url
+        if self.trigger_type:
+            trigger_type = etree.SubElement(datastream_trigger, DataFields.Trigger_Type.replace("_", "-"))
+            trigger_type.text = self.trigger_type            
+        if self.threshold_value:
+            threshold_value = etree.SubElement(datastream_trigger, DataFields.Threshold_Value.replace("_", "-"))
+            threshold_value.attrib['type'] = 'float'
+            threshold_value.text = self.threshold_value 
+        if self.notified_at:
+            notified_at = etree.SubElement(datastream_trigger, DataFields.Notified_At.replace("_", "-"))
+            notified_at.attrib['type'] = 'datetime'
+            notified_at.text = self.notified_at 
+        if self.user:
+            user = etree.SubElement(datastream_trigger, DataFields.User)
+            user.text = self.user
+        if self.environment_id:
+            environment_id = etree.SubElement(datastream_trigger, DataFields.Environment_Id.replace("_", "-"))
+            environment_id.attrib['type'] = 'integer'
+            environment_id.text = str(self.environment_id)
+        if self.stream_id:
+            stream_id = etree.SubElement(datastream_trigger, DataFields.Stream_Id)
+            stream_id.text = self.stream_id
+
+        return datastream_trigger
+
+
+    def fromXml(self, element):
+        """
+        Populate attributes from a XML etree
         
-        if api_key is None:
-            api_key = self.api_key
-            
-        headers = {'X-PachubeApiKey': api_key}
-        
-        d = self._get(url, headers)
-        d.addCallback(self._getResponseBody)
+        @param xml: an xml element tree
+        @type xml: etree.Element
+        """
+        datastream_trigger = element.find(DataFields.Datastream_Trigger)
+        if datastream_trigger is not None:
+            id = datastream_trigger.find(DataFields.Id)
+            if id is not None:
+                self.id = int(id.text)
+            url = datastream_trigger.find(DataFields.Url)
+            if url is not None:
+                self.url = url.text                
+            trigger_type = datastream_trigger.find(DataFields.Trigger_Type.replace("_", "-"))
+            if trigger_type is not None:
+                self.trigger_type = trigger_type.text
+            threshhold_value = datastream_trigger.find(DataFields.Threshold_Value.replace("_", "-"))
+            if threshhold_value is not None:
+                self.threshhold_value = float(threshhold_value.text)            
+            notified_at = datastream_trigger.find(DataFields.Notified_At.replace("_", "-"))
+            if notified_at is not None:
+                self.notified_at = notified_at.text
+            user = datastream_trigger.find(DataFields.User)
+            if user is not None:
+                self.user = user.text                          
+            environment_id = datastream_trigger.find(DataFields.Environment_Id.replace("_", "-"))
+            if environment_id is not None:
+                self.environment_id = int(environment_id.text)           
+            stream_id = datastream_trigger.find(DataFields.Stream_Id)
+            if stream_id is not None:
+                self.stream_id = stream_id.text  
+
+
+    def encode(self, format=DataFormats.JSON):
+        """ 
+        Return a string representation of the object encoded in the specified format
+        """
         if format == DataFormats.JSON:
-            d.addCallback(self._convertJsonToDict)
-        return d        
+            return json.dumps(self.toDict())
         
-        
-    def update_trigger(self, api_key=None, trigger_id=None, format=DataFormats.JSON, data=None):
-        """
-        Updates an existing trigger object. 
+        elif format == DataFormats.XML:
+            # This XML structure is not wrapped in EEML headers
+            return etree.tostring(self.toXml(), 'utf-8')            
 
-        @param api_key: An api key with authorization settings allowing this action to be performed
-        @type api_key: string
-        @param trigger_id: The trigger identifier
-        @type trigger_id: string
-        @param format: The format to request the results in [json|xml]
-        @type format: string
-        @param data: A representation of the trigger in the appropriate format.
-        @type data: string
-        
-        @return: A deferred that returns the success of the update based on
-                 the response header data. 
-        @rtype: boolean
+        else:
+            raise Exception("Don't know how to encode %s using format %s" % (self.__class__.__name__,
+                                                                             format))
 
-        If api_key argument is not set when calling this method then the default value
-        set during this object's instantiation (ie. in __init__) is used.                
-        """
-        url = "%s/triggers/%s.%s" % (self.api_url, trigger_id, format)
-        
-        if api_key is None:
-            api_key = self.api_key
-            
-        headers = {'X-PachubeApiKey': api_key}
 
-        d = self._put(url, headers, data)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d
-    
-    
-    def delete_trigger(self, api_key=None, trigger_id=None):
-        """
-        Delete a trigger.
-        WARNING: This is final and cannot be undone.
-
-        @param api_key: An api key with authorization settings allowing this action to be performed
-        @type api_key: string
-        @param trigger_id: The trigger identifier
-        @type trigger_id: string
-        
-        @return: A deferred that returns the success of the delete based on
-                 the response header data. 
-        @rtype: boolean
-
-        If api_key argument is not set when calling this method then the default value
-        set during this object's instantiation (ie. in __init__) is used.      
-        """
-
+    def decode(self, data, format=DataFormats.JSON):
+        """ 
+        Decode data, in the specified format, into local attributes
+        """ 
+        if format == DataFormats.JSON:
+            inDict = json.loads(data)
+            self.fromDict(inDict)
                     
-        url = "%s/triggers/%s.%s" % (self.api_url, trigger_id, format)
-        
-        if api_key is None:
-            api_key = self.api_key
-            
-        headers = {'X-PachubeApiKey': api_key}
+        elif format == DataFormats.XML:
+            # This XML structure is not wrapped in EEML headers 
+            element = etree.fromstring(data)
+            if element is not None:
+                self.fromXml(element)
 
-        d = self._delete(url, headers)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d    
+        else:
+            raise Exception("Don't know how to decode %s using format %s" % (self.__class__.__name__,
+                                                                             format))                            
+
+class TriggerList(DataStructure):
+    """
+    Models a Trigger list item
     
+    The json structure of this object is actually a list while all
+    the others are a dict. To allow object initialisation using the
+    normal **kwargs approach (and to allow decoding) we need to wrap
+    the list in a dict. The wrapper dict uses the key DataFields.Datastream_Trigger.
+    """
     
-    #
-    # Users
-    #
-    
-    
-    def list_users(self, api_key=None, format=DataFormats.JSON):
+    def __init__(self, **kwargs):
+        self.triggers = []
+
+        # initialise attributes to specified values or None.
+        self.fromDict(kwargs)
+        
+
+    def toDict(self):
         """ 
-        Retrieve a list of all users for the authenticated account
+        Return the data structure object as a dict. This method is used as 
+        a helper function for JSON serialization/deserialization.
+        """
+        # This object is actually contained in a list
+        triggers = []
+        for trigger in self.triggers:
+            triggers.append(trigger.toDict())
+        return triggers
+        
+    
+    def fromDict(self, inDict):
+        """
+        Populate attributes from a dict
+        """
+        # The json structure of this object is actually a list. To allow
+        # this object to be initialised and decoded, the list is wrapped
+        # in a dict with a key identical to the XML verison which is
+        # DataFields.Datastream_Trigger.
+        # Remove the wrapper dict to access triggers list
 
-        @param api_key: An api key with authorization settings allowing this action to be performed
-        @type api_key: string
-        @param format: The format to request the results in [json|xml]
-        @type format: string
+        triggersList = inDict[DataFields.Datastream_Trigger]
+        self.triggers = []
+        for triggerDict in triggersList:
+            self.triggers.append(Trigger(**triggerDict))
+    
+    
+    def toXml(self, parent=None):
+        """ 
+        Return the object as an xml ElementTree 
         
-        @return: A deferred that returns a list of users in the format specified 
-                 by the format argument. 
-        @rtype: boolean
+        @param parent: The parent element
+        @type parent: etree.Element
         
-        If api_key argument is not set when calling this method then the default value
-        set during this object's instantiation (ie. in __init__) is used.
-        """     
-        url = "%s/users.%s" % (self.api_url, format)
-        
-        if api_key is None:
-            api_key = self.api_key
-            
-        headers = {'X-PachubeApiKey': api_key}
+        @return: XML representation of the object
+        @rtype: etree.Element
+        """
+        datastream_triggers = etree.Element(DataFields.Datastream_Triggers)
+        datastream_triggers.attrib['type'] = 'array'
+        for trigger in self.triggers:
+            datastream_triggers.append(trigger.toXml())
 
-        d = self._get(url, headers)
-        d.addCallback(self._getResponseBody)
+        return datastream_triggers
+
+
+    def fromXml(self, element):
+        """
+        Populate attributes from a XML etree
+        
+        @param xml: an xml element tree
+        @type xml: etree.Element
+        """
+        datastream_triggers = element.find(DataFields.Datastream_Triggers)
+        if datastream_triggers:
+            self.triggers = []
+            for datastream_trigger in datastream_triggers.findall(DataFields.Datastream_Trigger):
+                trigger = Trigger()
+                trigger.fromXml(datastream_trigger)
+                self.triggers.append(trigger)
+
+
+    def encode(self, format=DataFormats.JSON):
+        """ 
+        Return a string representation of the object encoded in the specified format
+        """
         if format == DataFormats.JSON:
-            d.addCallback(self._convertJsonToDict)
-        return d 
-    
-    
-    def create_user(self, api_key=None, format=DataFormats.JSON, data=None):
-        """
-        Create a user
+            return json.dumps(self.toDict())
+        
+        elif format == DataFormats.XML:
+            # This XML structure is not wrapped in EEML headers
+            return etree.tostring(self.toXml(), 'utf-8')            
 
-        @param api_key: An api key with authorization settings allowing this action to be performed
-        @type api_key: string
-        @param format: The format to request the results in [json|xml|csv|png]
-        @type format: string
-        @param data: User definition in the appropriate format.
-        @type data: string
-        
-        @return: A deferred that returns the success of the create user based on
-                 the response header data. 
-        @rtype: boolean
-        
-        If api_key argument is not set when calling this method then the default value
-        set during this object's instantiation (ie. in __init__) is used.        
-        
-        """
-        def getTriggerIdFromLocation(location):
-            """
-            Extract and return the new trigger id from the 'Location' field in the response header.
-            """
-            trigger_id = location.split("/")[-1]
-            return trigger_id
+        else:
+            raise Exception("Don't know how to encode %s using format %s" % (self.__class__.__name__,
+                                                                             format))
+
+
+    def decode(self, data, format=DataFormats.JSON):
+        """ 
+        Decode data, in the specified format, into local attributes
+        """ 
+        if format == DataFormats.JSON:
+            # The json structure of this object is actually a list.
+            # wrap it in a dict for a consistent input to fromDict
+            inDict = {DataFields.Datastream_Trigger : json.loads(data)}
+            self.fromDict(inDict)
                     
-        url = "%s/users.%s" % (self.api_url, format)
-        
-        if api_key is None:
-            api_key = self.api_key
+        elif format == DataFormats.XML:
+            # This XML structure is not wrapped in EEML headers 
+            element = etree.fromstring(data)
+            if element is not None:
+                self.fromXml(element)
+
+        else:
+            raise Exception("Don't know how to decode %s using format %s" % (self.__class__.__name__,
+                                                                             format))  
+    
+    
+# TODO: Define a Permisisons data structure and use it in Key structures. 
             
-        headers = {'X-PachubeApiKey': api_key}
-               
-        d = self._post(url, headers, data)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d
+class Key(DataStructure):
+    """ Models a API Key item """
+
     
-    
-    def read_user(self, api_key=None, user_id=None, format=DataFormats.JSON):
+    def __init__(self, **kwargs):
+        self._attributes = [DataFields.Id,
+                            DataFields.Api_Key,
+                            DataFields.Label,
+                            DataFields.Permissions]
+        self.id = None
+        self.api_key = None
+        self.label = None
+        self.permissions = None
+
+        # initialise attributes to specified values or None.
+        self.fromDict(kwargs)
+        
+
+    def toDict(self):
         """ 
-        Returns the details of a specific user 
-        
-        @param api_key: An api key with authorization settings allowing this action to be performed
-        @type api_key: string
-        @param user_id: The user identifier
-        @type user_id: string
-        @param format: The format to request the results in [json|xml]
-        @type format: string
-        
-        @return: A deferred that returns the response body which contains
-                 the details of a user in the format specified 
-                 by the format argument.
-        @rtype: string
-        
-        If api_key argument is not set when calling this method then the default value
-        set during this object's instantiation (ie. in __init__) is used.
-        """      
-        url = "%s/users/%s.%s" % (self.api_url, user_id, format)
-        
-        if api_key is None:
-            api_key = self.api_key
-            
-        headers = {'X-PachubeApiKey': api_key}
-        
-        d = self._get(url, headers)
-        d.addCallback(self._getResponseBody)
-        if format == DataFormats.JSON:
-            d.addCallback(self._convertJsonToDict)
-        return d 
-    
-    
-    def update_user(self, api_key=None, user_id=None, format=DataFormats.JSON, data=None):
+        Return the data structure object as a dict. This method is used as 
+        a helper function for JSON serialization/deserialization.
         """
-        Updates details of an existing user object. 
-
-        @param api_key: An api key with authorization settings allowing this action to be performed
-        @type api_key: string
-        @param user_id: The user identifier
-        @type user_id: string
-        @param format: The format to request the results in [json|xml]
-        @type format: string
-        @param data: Details of the user in the appropriate format.
-        @type data: string
-        
-        @return: A deferred that returns the success of the update based on
-                 the response header data. 
-        @rtype: boolean
-
-        If api_key argument is not set when calling this method then the default value
-        set during this object's instantiation (ie. in __init__) is used.                
+        keyDict = dict()
+        keyAttrsDict = dict()
+        for attribute in self._attributes:
+            attribute_value = getattr(self, attribute, None)
+            if attribute_value:
+                if attribute == DataFields.Permissions:
+                    access_methods = dict()
+                    access_methods[DataFields.Access_Methods] = attribute_value
+                    keyAttrsDict[attribute] = access_methods
+                else:
+                    keyAttrsDict[attribute] = str(attribute_value)
+        keyDict[DataFields.Key] = keyAttrsDict
+        return keyDict
+    
+    
+    def fromDict(self, inDict):
         """
-        url = "%s/users/%s.%s" % (self.api_url, user_id, format)
-        
-        if api_key is None:
-            api_key = self.api_key
-            
-        headers = {'X-PachubeApiKey': api_key}
-
-        d = self._put(url, headers, data)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d
-    
-    
-    def delete_user(self, api_key=None, user_id=None):
+        Populate attributes from a dict
         """
-        Delete a user.
-        WARNING: This is final and cannot be undone.
+        keyDict = inDict.get(DataFields.Key, None)
+        if keyDict:
+            for attribute in self._attributes:
+                attribute_value = keyDict.get(attribute, None)
+                if attribute_value:
+                    if attribute == DataFields.Permissions:
+                        attribute_value = attribute_value[0][DataFields.Access_Methods]
+                    setattr(self, attribute, attribute_value)
 
-        @param api_key: An api key with authorization settings allowing this action to be performed
-        @type api_key: string
-        @param user_id: The user identifier
-        @type user_id: string
         
-        @return: A deferred that returns the success of the delete based on
-                 the response header data. 
-        @rtype: boolean
-
-        If api_key argument is not set when calling this method then the default value
-        set during this object's instantiation (ie. in __init__) is used.      
-        """
-        url = "%s/users/%s.%s" % (self.api_url, user_id, format)
-        
-        if api_key is None:
-            api_key = self.api_key
-            
-        headers = {'X-PachubeApiKey': api_key}
-
-        d = self._delete(url, headers)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d
-    
-    
-    #    
-    # API Keys
-    #
-    
-    
-    def list_api_keys(self, api_key=None, format=DataFormats.JSON):
+    def toXml(self, parent=None):
         """ 
-        Retrieve a list of all keys for the authenticated account.
+        Return the object as an xml ElementTree 
+        
+        @param parent: The parent element
+        @type parent: etree.Element
+        
+        @return: XML representation of the object
+        @rtype: etree.Element
+        """
+        key = etree.Element(DataFields.Key)
+        
+        if self.id:
+            id = etree.SubElement(key, DataFields.Id)
+            id.text = self.id
+        if self.api_key:
+            api_key = etree.SubElement(key, DataFields.Api_Key)
+            api_key.text = self.api_key
+        if self.label:
+            label = etree.SubElement(key, DataFields.Label)
+            label.text = self.label
+        if self.permissions:
+            permissions = etree.SubElement(key, DataFields.Permissions)
+            permission = etree.SubElement(permissions, DataFields.Permission)
+            access_methods = etree.SubElement(permissions, DataFields.Access_Methods)
+            for p in self.permissions:
+                 access_method = etree.SubElement(access_methods, DataFields.Access_Method)
+                 access_method.text = p
+                 
+        return key
 
-        @param api_key: An api key with authorization settings allowing this action to be performed
-        @type api_key: string
-        @param format: The format to request the results in [json|xml]
-        @type format: string
-        
-        @return: A deferred that returns a keys the response header data. 
-        @rtype: boolean
-        
-        If api_key argument is not set when calling this method then the default value
-        set during this object's instantiation (ie. in __init__) is used.
-        """     
-        url = "%s/keys.%s" % (self.api_url, format)
-        
-        if api_key is None:
-            api_key = self.api_key
-            
-        headers = {'X-PachubeApiKey': api_key}
 
-        d = self._get(url, headers)
-        d.addCallback(self._getResponseBody)
+    def fromXml(self, element):
+        """
+        Populate attributes from a XML etree
+        
+        @param xml: an xml element tree
+        @type xml: etree.Element
+        """
+
+        key = element.find(DataFields.Key)
+        if key is not None:
+            id = key.find(DataFields.Id)
+            if id is not None:
+                self.id = id.text
+            api_key = key.find(DataFields.Api_Key)
+            if api_key is not None:
+                self.api_key = api_key.text                
+            label = key.find(DataFields.Label)
+            if label is not None:
+                self.label = label.text
+            permissions = key.find(DataFields.Permissions)
+            if permissions is not None:
+                permission = permissions.find(DataFields.Permission)
+                if permisison is not None:
+                    access_methods = permission.find(DataFields.Access_Methods)
+                    if access_methods is not None:
+                        self.permissions = []
+                        for access_method in access_methods.findall(DataFields.Access_Method):
+                            self.permissions.append(access_method.text) 
+
+
+    def encode(self, format=DataFormats.JSON):
+        """ 
+        Return a string representation of the object encoded in the specified format
+        """
         if format == DataFormats.JSON:
-            d.addCallback(self._convertJsonToDict)
-        return d
-    
-    
-    def create_api_key(self, api_key=None, format=DataFormats.JSON, data=None):
-        """
-        Create a new API key
+            return json.dumps(self.toDict())
+        
+        elif format == DataFormats.XML:
+            # This XML structure is not wrapped in EEML headers
+            return etree.tostring(self.toXml(), 'utf-8')            
 
-        @param api_key: An api key with authorization settings allowing this action to be performed
-        @type api_key: string
-        @param format: The format to request the results in [json|xml|csv|png]
-        @type format: string
-        @param data: key definition in the appropriate format.
-        @type data: string
-        
-        @return: A deferred that returns the API Key of the created key. 
-        @rtype: string
-        
-        If api_key argument is not set when calling this method then the default value
-        set during this object's instantiation (ie. in __init__) is used.        
-        
-        """
-        def getApiKey(d):
-            """
-            Extract and return the new api_key from the response body.
-            """
-            return d[Pachube.Key][Pachube.Api_Key]
+        else:
+            raise Exception("Don't know how to encode %s using format %s" % (self.__class__.__name__,
+                                                                             format))
+
+
+    def decode(self, data, format=DataFormats.JSON):
+        """ 
+        Decode data, in the specified format, into local attributes
+        """ 
+        if format == DataFormats.JSON:
+            inDict = json.loads(data)
+            self.fromDict(inDict)
                     
-        url = "%s/keys.%s" % (self.api_url, format)
+        elif format == DataFormats.XML:
+            # This XML structure is not wrapped in EEML headers 
+            element = etree.fromstring(data)
+            if element is not None:
+                self.fromXml(element)
+
+        else:
+            raise Exception("Don't know how to decode %s using format %s" % (self.__class__.__name__,
+                                                                             format))                            
+
+
+class KeyList(DataStructure):
+    """ Models a API key list item """
+    
+    def __init__(self, **kwargs):
+
+        self.keys = []
+
+        # initialise attributes to specified values or None.
+        self.fromDict(kwargs)
         
-        if api_key is None:
-            api_key = self.api_key
-            
-        headers = {'X-PachubeApiKey': api_key}
-               
-        d = self._post(url, headers, data)
-        d.addCallback(self._getResponseBody)
-        if format == DataFormats.JSON:
-            d.addCallback(self._convertJsonToDict)
-        return d
-    
-    
-    def read_api_key(self, api_key=None, key_id=None, format=DataFormats.JSON):
+
+    def toDict(self):
         """ 
-        Returns the details of a specific API Key 
+        Return the data structure object as a dict. This method is used as 
+        a helper function for JSON serialization/deserialization.
+        """
+        keysDict = dict()
+        keyList = []
+        for key in self.keys:
+            keyList.append(key.toDict())
+        keysDict[DataFields.Keys] = keyList
+        return keysDict
+    
+    
+    def fromDict(self, inDict):
+        """
+        Populate attributes from a dict
+        """
+        keysList = inDict.get(DataFields.Keys, None)
+        if keysList is not None:
+            self.keys = []
+            for keyDict in keysList:
+                key = Key(**keyDict)
+                self.keys.append(key)
+
         
-        @param api_key: An api key with authorization settings allowing this action to be performed
-        @type api_key: string
-        @param key_id: The API key identifier
-        @type key_id: string
-        @param format: The format to request the results in [json|xml]
-        @type format: string
+    def toXml(self, parent=None):
+        """ 
+        Return the object as an xml ElementTree 
         
-        @return: A deferred that returns the response body which contains
-                 the details of a API key in the format specified 
-                 by the format argument.
-        @rtype: string
+        @param parent: The parent element
+        @type parent: etree.Element
         
-        If api_key argument is not set when calling this method then the default value
-        set during this object's instantiation (ie. in __init__) is used.
-        """      
-        url = "%s/keys/%s.%s" % (self.api_url, key_id, format)
+        @return: XML representation of the object
+        @rtype: etree.Element
+        """
+        keys = etree.Element(DataFields.Keys)
+        for key in self.keys:
+            keys.append(key.toXml())
+                 
+        return keys
+
+
+    def fromXml(self, element):
+        """
+        Populate attributes from a XML etree
         
-        if api_key is None:
-            api_key = self.api_key
-            
-        headers = {'X-PachubeApiKey': api_key}
-        
-        d = self._get(url, headers)
-        d.addCallback(self._getResponseBody)
+        @param xml: an xml element tree
+        @type xml: etree.Element
+        """
+
+        keys = element.find(DataFields.Keys)
+        if keys is not None:
+            self.keys = []
+            for key_element in keys.findall(DataFields.Key):
+                key = Key()
+                key.fromXml(key_element)
+                self.keys.append(key)
+
+
+    def encode(self, format=DataFormats.JSON):
+        """ 
+        Return a string representation of the object encoded in the specified format
+        """
         if format == DataFormats.JSON:
-            d.addCallback(self._convertJsonToDict)
-        return d 
-    
-    
-    def delete_api_key(self, api_key=None, key_id=None):
-        """
-        Delete a API key.
-        WARNING: This is final and cannot be undone.
-
-        @param api_key: An api key with authorization settings allowing this action to be performed
-        @type api_key: string
-        @param key_id: The API key identifier
-        @type key_id: string
+            return json.dumps(self.toDict())
         
-        @return: A deferred that returns the success of the delete key action.
-        @rtype: boolean
+        elif format == DataFormats.XML:
+            # This XML structure is not wrapped in EEML headers
+            return etree.tostring(self.toXml(), 'utf-8')            
 
-        If api_key argument is not set when calling this method then the default value
-        set during this object's instantiation (ie. in __init__) is used.      
-        """
-        url = "%s/keys/%s.%s" % (self.api_url, key_id, format)
-        
-        if api_key is None:
-            api_key = self.api_key
+        else:
+            raise Exception("Don't know how to encode %s using format %s" % (self.__class__.__name__,
+                                                                             format))
+
+
+    def decode(self, data, format=DataFormats.JSON):
+        """ 
+        Decode data, in the specified format, into local attributes
+        """ 
+        if format == DataFormats.JSON:
+            inDict = json.loads(data)
+            self.fromDict(inDict)
+                    
+        elif format == DataFormats.XML:
+            # This XML structure is not wrapped in EEML headers 
+            element = etree.fromstring(data)
+            if element is not None:
+                self.fromXml(element)
+
+        else:
+            raise Exception("Don't know how to decode %s using format %s" % (self.__class__.__name__,
+                                                                             format))
             
-        headers = {'X-PachubeApiKey': api_key}
+            
 
-        d = self._delete(url, headers)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d
+class User(DataStructure):
+    """ Models a User item """
+
+    
+    def __init__(self, **kwargs):
+        self._attributes = [DataFields.About,
+                            DataFields.Api_Key,
+                            DataFields.Creatable_Roles,
+                            DataFields.Datastreams_Allowed,
+                            DataFields.Datastreams_Count,
+                            DataFields.Deliver_Email,
+                            DataFields.Display_Activity,
+                            DataFields.Display_Information,
+                            DataFields.Display_Stats,
+                            DataFields.Email,
+                            DataFields.First_Name,
+                            DataFields.Full_Name,
+                            DataFields.Last_Name,
+                            DataFields.Login,
+                            DataFields.Organisation,
+                            DataFields.Receive_Forum_Notifications,
+                            DataFields.Roles,
+                            DataFields.Subscribed_To_Mailings,
+                            DataFields.Timezone,
+                            DataFields.Total_Api_Access_Count,
+                            DataFields.Website]
+        
+        self.about = None
+        self.api_key = None
+        self.creatable_roles = None
+        self.datastreams_allowed = None
+        self.datastreams_count = None
+        self.deliver_email = None
+        self.display_activity = None
+        self.display_information = None
+        self.display_stats = None
+        self.email = None
+        self.first_name = None
+        self.full_name = None
+        self.last_name = None
+        self.login = None
+        self.organisation = None
+        self.receive_forum_notifications = None
+        self.roles = None
+        self.subscribed_to_mailing = None
+        self.timezone = None
+        self.website = None
+
+        # initialise attributes to specified values or None.
+        self.fromDict(kwargs)
+        
+
+    def toDict(self):
+        """ 
+        Return the data structure object as a dict. This method is used as 
+        a helper function for JSON serialization/deserialization.
+        """
+        userDict = dict()
+        for attribute in self._attributes:
+            attribute_value = getattr(self, attribute, None)
+            if attribute_value:
+                userDict[attribute] = attribute_value
+        
+        topDict = dict()
+        topDict[DataFields.User] = userDict
+        return topDict
+    
+    
+    def fromDict(self, inDict):
+        """
+        Populate attributes from a dict
+        """
+        userDict = inDict.get(DataFields.User, None)
+        if userDict:
+            for attribute in self._attributes:
+                attribute_value = userDict.get(attribute, None)
+                if attribute_value:
+                    setattr(self, attribute, attribute_value)
+
+        
+    def toXml(self, parent=None):
+        """ 
+        Return the object as an xml ElementTree 
+        
+        @param parent: The parent element
+        @type parent: etree.Element
+        
+        @return: XML representation of the object
+        @rtype: etree.Element
+        """
+        user = etree.Element(DataFields.User)
+
+        if self.about:
+            about = etree.SubElement(user, DataFields.About)
+            about.text = self.about
+        if self.api_key:
+            api_key = etree.SubElement(user, DataFields.Api_Key)
+            api_key.text = self.api_key
+        if self.creatable_roles:
+            creatable_roles = etree.SubElement(user, DataFields.Creatable_Roles)
+            for role_text in self.creatable_roles:
+                creatable_role = etree.SubElement(creatable_roles, DataFields.Creatable_Role)
+                creatable_role.text = role_text
+        if self.datastreams_allowed:
+            datastreams_allowed = etree.SubElement(user, DataFields.Datastreams_Allowed)
+            datastreams_allowed.text = str(self.datastreams_allowed)
+        if self.datastreams_count:
+            datastreams_count = etree.SubElement(user, DataFields.Datastreams_Count)
+            datastreams_count.text = str(self.datastreams_count)
+        if self.deliver_email:
+            deliver_email = etree.SubElement(user, DataFields.Deliver_Email)
+            deliver_email.text = self.deliver_email
+        if self.display_activity:
+            display_activity = etree.SubElement(user, DataFields.Display_Activity)
+            display_activity.text = self.display_activity
+        if self.display_information:
+            display_information = etree.SubElement(user, DataFields.Display_Information)
+            display_information.text = self.display_information            
+        if self.display_stats:
+            display_stats = etree.SubElement(user, DataFields.Display_Stats)
+            display_stats.text = self.display_stats 
+        if self.email:
+            email = etree.SubElement(user, DataFields.Email)
+            email.text = self.email 
+        if self.first_name:
+            first_name = etree.SubElement(user, DataFields.First_Name)
+            first_name.text = self.first_name 
+        if self.full_name:
+            full_name = etree.SubElement(user, DataFields.Full_Name)
+            full_name.text = self.full_name 
+        if self.about:
+            about = etree.SubElement(user, DataFields.About)
+            about.text = self.about             
+        if self.last_name:
+            last_name = etree.SubElement(user, DataFields.Last_Name)
+            last_name.text = self.last_name 
+        if self.login:
+            login = etree.SubElement(user, DataFields.Login)
+            login.text = self.login 
+        if self.organisation:
+            organisation = etree.SubElement(user, DataFields.Organisation)
+            organisation.text = self.organisation 
+        if self.receive_forum_notifications:
+            receive_forum_notifications = etree.SubElement(user, DataFields.Receive_Forum_Notifications)
+            receive_forum_notifications.text = self.receive_forum_notifications 
+        if self.roles:
+            roles = etree.SubElement(user, DataFields.Roles)
+            for role_text in self.roles:
+                role = etree.SubElement(roles, DataFields.Role)
+                role.text = role_text
+        if self.subscribed_to_mailing:
+            subscribed_to_mailing = etree.SubElement(user, DataFields.Subscribed_To_Mailings)
+            subscribed_to_mailing.text = self.subscribed_to_mailing                 
+        if self.timezone:
+            timezone = etree.SubElement(user, DataFields.Timezone)
+            timezone.text = self.timezone 
+        if self.website:
+            website = etree.SubElement(user, DataFields.Website)
+            website.text = self.website 
+
+        return user
 
 
+    def fromXml(self, element):
+        """
+        Populate attributes from a XML etree
+        
+        @param xml: an xml element tree
+        @type xml: etree.Element
+        """
+
+        user = element.find(DataFields.User)
+        if user is not None:
+            about = user.find(DataFields.About)
+            if about is not None:
+                self.about = about.text
+            api_key = user.find(DataFields.Api_Key)
+            if api_key is not None:
+                self.api_key = api_key.text
+            creatable_roles = user.find(DataFields.Creatable_Roles)
+            if creatable_roles is not None:
+                self.creatable_roles = []
+                for creatable_role in creatable_roles.findall(DataFields.Creatable_Role):
+                    self.creatable_roles.append(creatable_role.text)
+            datastreams_allowed = user.find(DataFields.Datastreams_Allowed)
+            if datastreams_allowed is not None:
+                self.datastreams_allowed = datastreams_allowed.text                
+            datastreams_count = user.find(DataFields.Datastreams_Count)
+            if datastreams_count is not None:
+                self.datastreams_count = datastreams_count.text                
+            deliver_email = user.find(DataFields.Deliver_Email)
+            if deliver_email is not None:
+                self.deliver_email = deliver_email.text                
+            display_activity = user.find(DataFields.Display_Activity)
+            if display_activity is not None:
+                self.display_activity = display_activity.text
+            display_information = user.find(DataFields.Display_Information)
+            if display_information is not None:
+                self.display_information = display_information.text                
+            display_stats = user.find(DataFields.Display_Stats)
+            if display_stats is not None:
+                self.display_stats = display_stats.text
+            email = user.find(DataFields.Email)
+            if email is not None:
+                self.email = email.text
+            first_name = user.find(DataFields.First_Name)
+            if first_name is not None:
+                self.first_name = first_name.text
+            full_name = user.find(DataFields.Full_Name)
+            if full_name is not None:
+                self.full_name = full_name.text
+            last_name = user.find(DataFields.Last_Name)
+            if last_name is not None:
+                self.last_name = last_name.text
+            login = user.find(DataFields.Login)
+            if login is not None:
+                self.login = login.text                                
+            organisation = user.find(DataFields.Organization)
+            if organisation is not None:
+                self.organisation = organisation.text
+            receive_forum_notifications = user.find(DataFields.Receive_Forum_Notifications)
+            if receive_forum_notifications is not None:
+                self.receive_forum_notifications = receive_forum_notifications.text
+            roles = user.find(DataFields.Roles)
+            if roles is not None:
+                self.roles = []
+                for role in roles.findall(DataFields.Role):
+                    self.roles.append(role.text)
+            subscribed_to_mailing = user.find(DataFields.Subscribed_To_Mailings)
+            if subscribed_to_mailing is not None:
+                self.subscribed_to_mailing = subscribed_to_mailing.text
+            timezone = user.find(DataFields.Timezone)
+            if timezone is not None:
+                self.timezone = timezone.text
+            website = user.find(DataFields.Website)
+            if website is not None:
+                self.website = website.text 
+
+
+    def encode(self, format=DataFormats.JSON):
+        """ 
+        Return a string representation of the object encoded in the specified format
+        """
+        if format == DataFormats.JSON:
+            return json.dumps(self.toDict())
+        
+        elif format == DataFormats.XML:
+            # This XML structure is not wrapped in EEML headers
+            return etree.tostring(self.toXml(), 'utf-8')            
+
+        else:
+            raise Exception("Don't know how to encode %s using format %s" % (self.__class__.__name__,
+                                                                             format))
+
+
+    def decode(self, data, format=DataFormats.JSON):
+        """ 
+        Decode data, in the specified format, into local attributes
+        """ 
+        if format == DataFormats.JSON:
+            inDict = json.loads(data)
+            self.fromDict(inDict)
+                    
+        elif format == DataFormats.XML:
+            # This XML structure is not wrapped in EEML headers 
+            element = etree.fromstring(data)
+            if element is not None:
+                self.fromXml(element)
+
+        else:
+            raise Exception("Don't know how to decode %s using format %s" % (self.__class__.__name__,
+                                                                             format))                            
+
+
+    
+class UserList(DataStructure):
+    """ Models a User list item """
+    
+    def __init__(self, **kwargs):
+
+        self.users = []
+
+        # initialise attributes to specified values or None.
+        self.fromDict(kwargs)
+        
+
+    def toDict(self):
+        """ 
+        Return the data structure object as a dict. This method is used as 
+        a helper function for JSON serialization/deserialization.
+        """
+        # this item is actually a list
+        usersList = list()
+        for user in self.users:
+            usersList.append(user.toDict())
+        return usersList
+    
+    
+    def fromDict(self, inDict):
+        """
+        Populate attributes from a dict
+        """
+        # The json structure of this object is actually a list. To allow
+        # this object to be initialised and decoded, the list is wrapped
+        # in a dict with a key identical to the XML verison which is
+        # DataFields.Users.
+        # Remove the wrapper dict to access triggers list
+        usersList = inDict[DataFields.Users]
+        if usersList:
+            self.users = []
+            for userDict in usersList:
+                user = User(**userDict)
+                self.users.append(user)
+
+        
+    def toXml(self, parent=None):
+        """ 
+        Return the object as an xml ElementTree 
+        
+        @param parent: The parent element
+        @type parent: etree.Element
+        
+        @return: XML representation of the object
+        @rtype: etree.Element
+        """
+        users = etree.Element(DataFields.Keys)
+        users.attrib['type'] = 'array'
+        for user in self.users:
+            users.append(user.toXml())
+        return users
+
+
+    def fromXml(self, element):
+        """
+        Populate attributes from a XML etree
+        
+        @param xml: an xml element tree
+        @type xml: etree.Element
+        """
+
+        users = element.find(DataFields.Users)
+        if users is not None:
+            self.users = []
+            for user_element in users.findall(DataFields.User):
+                user = User()
+                user.fromXml(user_element)
+                self.users.append(user)
+
+
+    def encode(self, format=DataFormats.JSON):
+        """ 
+        Return a string representation of the object encoded in the specified format
+        """
+        if format == DataFormats.JSON:
+            return json.dumps(self.toDict())
+        
+        elif format == DataFormats.XML:
+            # This XML structure is not wrapped in EEML headers
+            return etree.tostring(self.toXml(), 'utf-8')            
+
+        else:
+            raise Exception("Don't know how to encode %s using format %s" % (self.__class__.__name__,
+                                                                             format))
+
+
+    def decode(self, data, format=DataFormats.JSON):
+        """ 
+        Decode data, in the specified format, into local attributes
+        """ 
+        if format == DataFormats.JSON:
+            # The json structure of this object is actually a list.
+            # wrap it in a dict for a consistent input to fromDict
+            inDict = {DataFields.Users : json.loads(data)}
+            self.fromDict(inDict)
+                    
+        elif format == DataFormats.XML:
+            # This XML structure is not wrapped in EEML headers 
+            element = etree.fromstring(data)
+            if element is not None:
+                self.fromXml(element)
+
+        else:
+            raise Exception("Don't know how to decode %s using format %s" % (self.__class__.__name__,
+                                                                             format))
+
+    
+    
+################################################################################
+
+# Define a mapping of data structure label to object that
+# can be used to resolve the appropriate data structure
+# to create when parsing response data from Pachube.
+List_Feeds_Msg = 'feeds_list'
+View_Feed_Msg = 'feed'
+View_Datastream_Msg = 'datastream'
+View_Datapoint_Msg = 'datapoint'
+List_Keys_Msg = 'keys_list'
+View_Key_Msg = 'key'
+List_Triggers_Msg = 'triggers_list'
+View_Trigger_Msg = 'trigger'
+List_Users_Msg = 'users_list'
+View_User_Msg = 'user'
+StructuresMap = {List_Feeds_Msg : EnvironmentList,
+                 View_Feed_Msg : Environment,
+                 View_Datastream_Msg : Datastream,
+                 View_Datapoint_Msg : Datapoint,
+                 List_Keys_Msg : KeyList,
+                 View_Key_Msg : Key,
+                 List_Triggers_Msg : TriggerList,
+                 View_Trigger_Msg : Trigger,
+                 List_Users_Msg : UserList,
+                 View_User_Msg : User}
+
+
+def getDataStructure(msg_kind):
+    if msg_kind not in StructuresMap:
+        err_str = "Invalid structure \'%s\', can't convert" % structure
+        logging.error(err_str)
+        raise Exception(err_str)
+    return StructuresMap[msg_kind]
+    

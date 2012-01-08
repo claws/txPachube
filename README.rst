@@ -1,10 +1,16 @@
 txPachube
 =========
 
-txPachube is a Python wrapper of the v2 Pachube `API <http://api.pachube.com/v2/>`_, based on the Twisted networking framework.
+txPachube is a Python wrapper for the v2 Pachube `API <http://api.pachube.com/v2/>`_, based on the Twisted networking framework.
 Use it to integrate non blocking access to the Pachube API into your Python Twisted application.
 
-It implements the full Pachube API - Feeds, Datastreams, Datapoints, Triggers, Users, Keys.
+It implements the full Pachube API (Feeds, Datastreams, Datapoints, Triggers, Users, Keys) and many 
+of the data structures (Unit, Location, Datapoint, Datastream, Environment, EnvironmentList, Trigger,
+TriggerList Key, KeyList, User, UserList) contained in requests and responses.
+
+The data structures support encoding and decoding from JSON/XML formats. These strucutres are useful
+when building data to send to Pachube and alsp for processing Pachube data returned from queries.
+
 
 **txPachube is currently under development**
 
@@ -51,10 +57,10 @@ List Pachube feeds visible to the API key supplied::
 
     if __name__ == "__main__":
 
-        pachubeClient = txPachube.Client(api_key=API_KEY)
+        pachubeClient = txPachube.client.Client(api_key=API_KEY)
 
         d = pachubeClient.list_feeds()
-        d.addCallback(lambda feed_list: print "Received feed list content:\n%s\n" % feed_list)
+        d.addCallback(lambda environment_list: print "Received feed list content:\n%s\n" % environment_list)
         d.addErrback(lambda reason: print "Error listing visible feeds: %s" % str(reason))
         d.addCallback(reactor.stop)
 
@@ -86,7 +92,7 @@ Create a new feed::
 
     if __name__ == "__main__":
 
-        pachubeClient = txPachube.Client()
+        pachubeClient = txPachube.client.Client()
 
         d = pachubeClient.create_feed(api_key=API_KEY, data=json_feed_data)
         d.addCallback(lambda new_feed_id: print "Feed created. New feed id is: %s" % new_feed_id)
@@ -99,11 +105,12 @@ Create a new feed::
 Update a feed::
   
     #!/usr/bin/env python 
-    # This example show how a feed can be updated. The Client object
-    # has been initialised with an API key and a feed id so they don't
-    # need to be passed to the update_feed method. The format argument
-    # is defaulted to json so it must be passed as this example is using
-    # XML.
+    # This example show how a feed can be updated using your own generated
+    # data, in this case XML data. 
+    # The Client object has been initialised with an API key and a feed id 
+    # so they don't need to be passed to the update_feed method. The format 
+    # argument is JSON by default so it must be explicitly set as this 
+    # example is using XML.
  
     from twisted.internet import reactor
     import txPachube
@@ -142,15 +149,15 @@ Update a feed::
 
     if __name__ == "__main__":
 
-        pachubeClient = txPachube.Client(api_key=API_KEY, feed_id=FEED_ID)
+        pachubeClient = txPachube.client.Client(api_key=API_KEY, feed_id=FEED_ID)
 
         d = pachubeClient.update_feed(format=txPachube.DataFormats.XML, data=feed_data)
         d.addCallback(lambda result: print "Feed updated successfully:\n%s\n" % result)
         d.addErrback(lambda reason: print "Error updating feed: %s" % str(reason))
         d.addCallback(reactor.stop)
 
-        reactor.run()
-
+        reactor.run()      
+        
 
 Read a feed::
    
@@ -173,10 +180,10 @@ Read a feed::
 
     if __name__ == "__main__":
         
-        pachubeClient = txPachube.Client(api_key=API_KEY, feed_id=FEED_ID)
+        pachubeClient = txPachube.client.Client(api_key=API_KEY, feed_id=FEED_ID)
 
-        d = pachubeClient.read_feed(parameters={'datastreams' : 'temperature'})
-        d.addCallback(lambda feed_dict: print "Received feed content:\n%s\n" % feed_dict)
+        d = pachubeClient.read_feed(parameters={txPachube.DataFields.Datastreams : 'temperature'})
+        d.addCallback(lambda environment: print "Received feed content:\n%s\n" % environment)
         d.addErrback(lambda reason: print "Error retrieving feed data: %s" % str(reason))
         d.addCallback(reactor.stop)
 
@@ -187,7 +194,7 @@ Delete a feed::
 
     #!/usr/bin/env python 
     # This example demonstrates the ability to delete a feed.
-    WARNING: This will REALLY delete the feed identifier listed. Make sure it is only a test feed. 
+    # WARNING: This will REALLY delete the feed identifier listed. Make sure it is only a test feed. 
  
     from twisted.internet import reactor
     import txPachube
@@ -201,7 +208,7 @@ Delete a feed::
 
     if __name__ == "__main__":
 
-        pachubeClient = txPachube.Client(api_key=API_KEY)
+        pachubeClient = txPachube.client.Client(api_key=API_KEY)
 
         d = pachubeClient.delete_feed(feed_id=FEED_ID)
         d.addCallback(lambda result: print "Feed was deleted: %s" % result)
@@ -210,10 +217,97 @@ Delete a feed::
 
         reactor.run()
 
+
+Example use case::
+
+    #!/usr/bin/env python
+    
+    # This example demonstrate how you could use the txPachube module to
+    # help upload sensor data (in this scenario a CurrentCost device) to
+    # Pachube.
+    # A txPachube.Environment data structure is generated and populated
+    # with current value data. All the implemented data structures
+    # support encoding to JSON (default) and XML (EEML).
+    #
+    # In this example the CurrentCost sensor object is only for demonstration
+    # purposes which means that this is not a self contained runnable
+    # script. However, you could implement the CurrentCost object to make 
+    # it work.
+    
+    from twisted.internet import reactor
+    import txPachube
+
+    # Paste your Pachube API key here
+    API_KEY = ""
+
+    # Paste the feed identifier you wish to be DELETED here
+    FEED_ID = ""
+
+	
+	class Monitor(object):
+	
+        def __init__(self, config):
+            self.temperature_datastream_id = "temperature"
+            self.energy_datastream_id = "energy"
+            self.pachube = txPachube.client.Client(api_key=API_KEY, feed_id=FEED_ID)
+            self.sensor = CurrentCost()
+            self.sensor.setRealtimeMsgHandler(self.handleDataUpdate)
+            
+        def start(self):
+            """ Start sensor """
+            self.sensor.connect()
+            
+        def stop(self):
+            """ Stop the sensor """
+            self.sensor.stop()
+            
+        def handleDataUpdate(self, data):
+            """ Receive sensor data """
+            datastreams_data = []
+            if data.temperature:
+                datastream_data = (self.temperature_datastream_id, data.temperature)
+                datastreams_data.append(datastream_data)
+            if data.energy:
+                datastream_data = (self.energy_datastream_id, data.energy)
+                datastreams_data.append(datastream_data)
+			if datastreams_data:
+                self.updatePachube(datastreams_data)
+
+        def updatePachube(self, datastreams_data)
+            """ Update the Pachube service with latest value(s) """
+            
+            # Populate a txPachube.Environment object which supports
+            # encoding to JSON (default) and XML (EEML).
+            env_kwargs = {txPachube.DataFields.Version : "1.0.0"}
+            environment = txPachube.Environment(**env_kwargs)
+            for datastream_data in datastreams_data:
+                datastream_id, current_value = datastream_data
+                environment.setCurrentValue(datastream_id, current_value)
+                
+            d = self.pachube.update_feed(data=environment.encode())
+            d.addCallback(self._cbPachubeUpdateSuccess)
+            d.addErrback(self._cbPachubeUpdateFailed)
+        
+
+        def _cbPachubeUpdateSuccess(self, result):
+            print "Pachube updated"
+        
+
+        def _cbPachubeUpdateFailed(self, reason):
+            print "Pachube update failed: %s" % str(reason)           
+
+
+    if __name__ == "__main__":
+        monitor = Monitor()
+        reactor.callWhenRunning(monitor.start)
+        reactor.run()        
+        
+        
+        
 Todo
 ====
 
-* Add classes for environments (feeds), datastreams, datapoints, etc so that
-  these can be passes between the txPachube functions instead of the current
-  strings containing json or xml or csv data.
+* Add test cases
+* Investigate alternative installers that support uninstall/update options.
+
 
