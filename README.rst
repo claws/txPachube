@@ -8,7 +8,7 @@ It implements the full Pachube API (Feeds, Datastreams, Datapoints, Triggers, Us
 of the data structures (Unit, Location, Datapoint, Datastream, Environment, EnvironmentList, Trigger,
 TriggerList Key, KeyList, User, UserList) contained in requests and responses.
 
-The data structures support encoding and decoding from JSON/XML formats. These strucutres are useful
+The data structures support encoding and decoding from JSON/XML formats. These structures are useful
 when building data to send to Pachube and also for processing Pachube data returned from queries.
 
 
