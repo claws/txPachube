@@ -9,7 +9,7 @@ of the data structures (Unit, Location, Datapoint, Datastream, Environment, Envi
 TriggerList Key, KeyList, User, UserList) contained in requests and responses.
 
 The data structures support encoding and decoding from JSON/XML formats. These strucutres are useful
-when building data to send to Pachube and alsp for processing Pachube data returned from queries.
+when building data to send to Pachube and also for processing Pachube data returned from queries.
 
 
 **txPachube is currently under development**
