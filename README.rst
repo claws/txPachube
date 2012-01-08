@@ -222,7 +222,7 @@ Example use case::
 
     #!/usr/bin/env python
     
-    # This example demonstrate how you could use the txPachube module to
+    # This example demonstrates how you could use the txPachube module to
     # help upload sensor data (in this scenario a CurrentCost device) to
     # Pachube.
     # A txPachube.Environment data structure is generated and populated
@@ -244,8 +244,8 @@ Example use case::
     FEED_ID = ""
 
 	
-	class Monitor(object):
-	
+    class Monitor(object):
+    
         def __init__(self, config):
             self.temperature_datastream_id = "temperature"
             self.energy_datastream_id = "energy"
