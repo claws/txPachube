@@ -7,7 +7,7 @@ except ImportError:
 from xml.dom import minidom
 import re
 import json
-
+import unittest
 try:
     import txPachube
 except ImportError:
@@ -83,6 +83,7 @@ TEST_FEEDS_LIST_XML = """<eeml xmlns="http://www.eeml.org/xsd/0.5.1" xmlns:xsi="
 TEST_FEED_JSON = """{
 "description" : "test of manual feed snapshotting",
 "feed" : "http://api.pachube.com/v2/feeds/504.json",
+"icon" : "http://www.haque.co.uk/favicon.png",
 "id" : 7021,
 "status" : "frozen",
 "title" : "Pachube Office environment",
@@ -90,6 +91,7 @@ TEST_FEED_JSON = """{
 "updated" : "2010-06-25T11:54:17.463771Z",
 "version" : "1.0.0",
 "creator" : "http://www.pachube.com/users/hdr",
+"private" : "False",
 "tags":[
     "Tag1",
     "Tag2"
@@ -457,175 +459,453 @@ TEST_USERS_LIST_XML = """<users type="array">
 
 
 
-def test_data_structures():
-    # unit
-    unit_kwargs = {txPachube.DataFields.Label : 'Celcius',
-                   txPachube.DataFields.Type : txPachube.Unit.Basic_Si,
-                   txPachube.DataFields.Symbol : "C"}
-    test_unit = txPachube.Unit(**unit_kwargs)
+class DataStructureTestCase(unittest.TestCase):
+    
+    def setUp(self):
+        pass
+    
+    def test_Initialisation(self):
+        """ Check data structure initialisation """
+        
+        # test no arguments
+        
+        unit = txPachube.Unit()
+        location = txPachube.Location()
+        datapoint = txPachube.Datapoint()
+        datastream = txPachube.Datastream()
+        environment = txPachube.Environment()
+        environment_list = txPachube.EnvironmentList()
+        trigger = txPachube.Trigger()
+        trigger_list = txPachube.TriggerList()
+        key = txPachube.Key()
+        key_list = txPachube.KeyList()
+        user = txPachube.User()
+        user_list = txPachube.UserList()
+       
+        
+        # test expected keyword arguments
+        
+        unit_kwargs = {txPachube.DataFields.Label : 'Celcius',
+                       txPachube.DataFields.Type : txPachube.Unit.Basic_Si,
+                       txPachube.DataFields.Symbol : "C"}
+        unit = txPachube.Unit(**unit_kwargs)
+        self.assertEqual(unit.label, unit_kwargs[txPachube.DataFields.Label], "Unit label mismatch")
+        self.assertEqual(unit.type, unit_kwargs[txPachube.DataFields.Type], "Unit type mismatch")
+        self.assertEqual(unit.symbol, unit_kwargs[txPachube.DataFields.Symbol], "Unit symbol mismatch")
 
-    a = test_unit.toDict()
-    b = test_unit.toXml()
-    c = test_unit.encode(txPachube.DataFormats.JSON)
-    d = test_unit.encode(txPachube.DataFormats.XML)
-    # unit is only ever part of another structure, never alone.
-    #test_unit.decode(XXX_JSON, format=txPachube.DataFormats.JSON)
-    #test_unit.decode(XXX_XML, format=txPachube.DataFormats.XML)   
+
+        location_kwargs = {txPachube.DataFields.Disposition : txPachube.Location.Fixed,
+                           txPachube.DataFields.Domain : txPachube.Location.Physical,
+                           txPachube.DataFields.Elevation : "40",
+                           txPachube.DataFields.Exposure : txPachube.Location.Indoor,
+                           txPachube.DataFields.Latitude : 51.5235375648154,
+                           txPachube.DataFields.Longitude : -0.0807666778564453,
+                           txPachube.DataFields.Name : 'temp'}
+        location = txPachube.Location(**location_kwargs)
+        self.assertEqual(location.disposition, location_kwargs[txPachube.DataFields.Disposition], "Location disposition mismatch")
+        self.assertEqual(location.domain, location_kwargs[txPachube.DataFields.Domain], "Location domain mismatch")
+        self.assertEqual(location.exposure, location_kwargs[txPachube.DataFields.Exposure], "Location exposure mismatch")
+        self.assertEqual(location.ele, location_kwargs[txPachube.DataFields.Elevation], "Location elevation mismatch")
+        self.assertEqual(location.lat, location_kwargs[txPachube.DataFields.Latitude], "Location latitude mismatch")
+        self.assertEqual(location.lon, location_kwargs[txPachube.DataFields.Longitude], "Location longitude mismatch")
+        self.assertEqual(location.name, location_kwargs[txPachube.DataFields.Name], "Location name mismatch")
+
+        
+        datapoint_kwargs = {txPachube.DataFields.At : "2010-04-12T11:31:51.133782Z", 
+                            txPachube.DataFields.Value : "999"}
+        datapoint = txPachube.Datapoint(**datapoint_kwargs)
+        self.assertEqual(datapoint.at, datapoint_kwargs[txPachube.DataFields.At], "Datapoint at mismatch")
+        self.assertEqual(datapoint.value, datapoint_kwargs[txPachube.DataFields.Value], "Datapoint value mismatch")
+        
+
+        datastream_kwargs = {txPachube.DataFields.At : "2010-04-12T11:31:52.133782Z",
+                             txPachube.DataFields.Current_Value : "27.0",
+                             txPachube.DataFields.Datapoints : [datapoint_kwargs],
+                             txPachube.DataFields.Id : 7021,
+                             txPachube.DataFields.Maximum_Value : "35.8",
+                             txPachube.DataFields.Minimum_Value : "15.9",
+                             txPachube.DataFields.Tags : ['temp', 'Temperature', 'C'],
+                             txPachube.DataFields.Unit : unit_kwargs,
+                             txPachube.DataFields.Updated : "2010-04-12T11:31:51.133782Z"}
+        datastream = txPachube.Datastream(**datastream_kwargs)
+        self.assertEqual(datastream.at, datastream_kwargs[txPachube.DataFields.At], "Datastream at mismatch")
+        self.assertEqual(datastream.current_value, datastream_kwargs[txPachube.DataFields.Current_Value], "Datastream current value mismatch")
+        
+        self.assertEqual(len(datastream.datapoints), len(datastream_kwargs[txPachube.DataFields.Datapoints]), "Datastream datapoints count mismatch")
+        self.assertEqual(datastream.datapoints[0].at, datastream_kwargs[txPachube.DataFields.Datapoints][0][txPachube.DataFields.At], "Datastream datapoints at mismatch")
+        self.assertEqual(datastream.datapoints[0].value, datastream_kwargs[txPachube.DataFields.Datapoints][0][txPachube.DataFields.Value], "Datastream datapoints value mismatch")
+        
+        self.assertEqual(datastream.id, datastream_kwargs[txPachube.DataFields.Id], "Datastream id mismatch")
+        self.assertEqual(datastream.max_value, datastream_kwargs[txPachube.DataFields.Maximum_Value], "Datastream maimum value mismatch")
+        self.assertEqual(datastream.min_value, datastream_kwargs[txPachube.DataFields.Minimum_Value], "Datastream minimum value mismatch")
+        
+        self.assertEqual(datastream.unit.label, datastream_kwargs[txPachube.DataFields.Unit][txPachube.DataFields.Label], "Datastream Unit label mismatch")
+        self.assertEqual(datastream.unit.type, datastream_kwargs[txPachube.DataFields.Unit][txPachube.DataFields.Type], "Datastream Unit type mismatch")
+        self.assertEqual(datastream.unit.symbol, datastream_kwargs[txPachube.DataFields.Unit][txPachube.DataFields.Symbol], "Datastream Unit symbol mismatch")
+        
+        self.assertEqual(datastream.updated, datastream_kwargs[txPachube.DataFields.Updated], "Datastream updated mismatch")
+        
+        
+        
+        env_inDict = json.loads(TEST_FEED_JSON)
+        environment = txPachube.Environment(**env_inDict)
+        self.assertEqual(environment.creator, env_inDict[txPachube.DataFields.Creator], "Environment creator mismatch")
+        
+        self.assertEqual(len(environment.datastreams), len(env_inDict[txPachube.DataFields.Datastreams]), "Environment datastreams count mismatch")
+        datastream_01 = env_inDict[txPachube.DataFields.Datastreams][0]
+        datastream_01_key = datastream_01[txPachube.DataFields.Id]
+        environment_datastream_01 = environment.datastreams[datastream_01_key]
+        self.assertEqual(environment_datastream_01.at, datastream_01[txPachube.DataFields.At], "Environment datastreams[0].at mismatch")
+        self.assertEqual(environment_datastream_01.current_value, datastream_01[txPachube.DataFields.Current_Value], "Environment datastreams[0].value mismatch")
+        self.assertEqual(environment_datastream_01.id, datastream_01[txPachube.DataFields.Id], "Environment datastreams[0].id mismatch")
+        self.assertEqual(environment_datastream_01.max_value, datastream_01[txPachube.DataFields.Maximum_Value], "Environment datastreams[0].max_value mismatch")
+        self.assertEqual(environment_datastream_01.min_value, datastream_01[txPachube.DataFields.Minimum_Value], "Environment datastreams[0].min_value mismatch")
+        datastream_02 = env_inDict[txPachube.DataFields.Datastreams][1]
+        datastream_02_key = datastream_02[txPachube.DataFields.Id]
+        environment_datastream_02 = environment.datastreams[datastream_02_key]
+        self.assertEqual(environment_datastream_02.at, datastream_02[txPachube.DataFields.At], "Environment datastreams[1].at mismatch")
+        self.assertEqual(environment_datastream_02.current_value, datastream_02[txPachube.DataFields.Current_Value], "Environment datastreams[1].value mismatch")
+        self.assertEqual(environment_datastream_02.id, datastream_02[txPachube.DataFields.Id], "Environment datastreams[1].id mismatch")
+        self.assertEqual(environment_datastream_02.max_value, datastream_02[txPachube.DataFields.Maximum_Value], "Environment datastreams[1].max_value mismatch")
+        self.assertEqual(environment_datastream_02.min_value, datastream_02[txPachube.DataFields.Minimum_Value], "Environment datastreams[1].min_value mismatch")
+        
+        self.assertEqual(environment.description, env_inDict[txPachube.DataFields.Description], "Environment description mismatch")
+        self.assertEqual(environment.feed, env_inDict[txPachube.DataFields.Feed], "Environment feed mismatch")
+        self.assertEqual(environment.icon, env_inDict[txPachube.DataFields.Icon], "Environment icon mismatch")
+        self.assertEqual(environment.id, env_inDict[txPachube.DataFields.Id], "Environment id mismatch")
+
+        self.assertEqual(environment.location.disposition, env_inDict[txPachube.DataFields.Location][txPachube.DataFields.Disposition], "Environment Location disposition mismatch")
+        self.assertEqual(environment.location.domain, env_inDict[txPachube.DataFields.Location][txPachube.DataFields.Domain], "Environment Location domain mismatch")
+        self.assertEqual(environment.location.exposure, env_inDict[txPachube.DataFields.Location][txPachube.DataFields.Exposure], "Environment Location exposure mismatch")
+        self.assertEqual(environment.location.ele, env_inDict[txPachube.DataFields.Location][txPachube.DataFields.Elevation], "Environment Location elevation mismatch")
+        self.assertEqual(environment.location.lat, env_inDict[txPachube.DataFields.Location][txPachube.DataFields.Latitude], "Environment Location latitude mismatch")
+        self.assertEqual(environment.location.lon, env_inDict[txPachube.DataFields.Location][txPachube.DataFields.Longitude], "Environment Location longitude mismatch")
+        self.assertEqual(environment.location.name, env_inDict[txPachube.DataFields.Location][txPachube.DataFields.Name], "Environment Location name mismatch")        
+        
+        self.assertEqual(environment.private, env_inDict[txPachube.DataFields.Private], "Environment private mismatch")
+        self.assertEqual(environment.status, env_inDict[txPachube.DataFields.Status], "Environment status mismatch")
+        self.assertEqual(environment.tags, env_inDict[txPachube.DataFields.Tags], "Environment tags mismatch")
+        self.assertEqual(environment.title, env_inDict[txPachube.DataFields.Title], "Environment title mismatch")
+        self.assertEqual(environment.updated, env_inDict[txPachube.DataFields.Updated], "Environment updated mismatch")
+        self.assertEqual(environment.version, env_inDict[txPachube.DataFields.Version], "Environment version mismatch")
+        self.assertEqual(environment.website, env_inDict[txPachube.DataFields.Website], "Environment website mismatch")
 
 
-    # location
-    location_kwargs = {txPachube.DataFields.Disposition : txPachube.Location.Fixed,
-                       txPachube.DataFields.Domain : txPachube.Location.Physical,
-                       txPachube.DataFields.Elevation : "40",
-                       txPachube.DataFields.Exposure : txPachube.Location.Indoor,
-                       txPachube.DataFields.Latitude : 51.5235375648154,
-                       txPachube.DataFields.Longitude : -0.0807666778564453,
-                       txPachube.DataFields.Name : 'temp'}
-    test_location = txPachube.Location(**location_kwargs)
 
-    a = test_location.toDict()
-    b = test_location.toXml()
-    c = test_location.encode(txPachube.DataFormats.JSON)
-    d = test_location.encode(txPachube.DataFormats.XML)
-    # location is only ever part of another structure, never alone.
-    #test_location.decode(XXX_JSON, format=txPachube.DataFormats.JSON)
-    #test_location.decode(XXX_XML, format=txPachube.DataFormats.XML)
+        envList_inDict = json.loads(TEST_FEEDS_LIST_JSON)
+        environment_list = txPachube.EnvironmentList(**envList_inDict)
+
+        trigger_inDict = json.loads(TEST_TRIGGER_JSON)
+        trigger = txPachube.Trigger(**trigger_inDict)
+
+        trigger_list_inDict = {txPachube.DataFields.Datastream_Trigger : json.loads(TEST_TRIGGERS_LIST_JSON)}
+        trigger_list = txPachube.TriggerList(**trigger_list_inDict)
+
+        key_inDict = json.loads(TEST_API_KEY_JSON)
+        key = txPachube.Key(**key_inDict)
+
+        key_list_inDict = json.loads(TEST_API_KEYS_LIST_JSON)
+        key_list = txPachube.KeyList(**key_list_inDict)
+
+        user_inDict = json.loads(TEST_USER_JSON)
+        user = txPachube.User(**user_inDict)
+
+        user_list_inDict = {txPachube.DataFields.Users : json.loads(TEST_USERS_LIST_JSON)}
+        user_list = txPachube.UserList(**user_list_inDict)
+
+
+    def test_DecodeFromJson(self):
+        """ Check decode from JSON format """
+        # Unit is only ever part of another structure, never alone.
+        # No need to explicitly test if Unit can be decoded from JSON
+
+        # Location is only ever part of another structure, never alone.
+        # No need to explicitly test if Unit can be decoded from JSON
+
+        datapoint = txPachube.Datapoint()
+        datapoint.decode(TEST_DATAPOINT_JSON, format=txPachube.DataFormats.JSON)
+        
+        datastream = txPachube.Datastream()
+        datastream.decode(TEST_DATASTREAM_JSON, format=txPachube.DataFormats.JSON)
+
+        environment = txPachube.Environment()
+        environment.decode(TEST_FEED_JSON, format=txPachube.DataFormats.JSON)
+
+        environment_list = txPachube.EnvironmentList()
+        environment_list.decode(TEST_FEEDS_LIST_JSON, format=txPachube.DataFormats.JSON)
+        
+        trigger = txPachube.Trigger()
+        trigger.decode(TEST_TRIGGER_JSON, format=txPachube.DataFormats.JSON)
+        
+        trigger_list = txPachube.TriggerList()
+        trigger_list.decode(TEST_TRIGGERS_LIST_JSON, format=txPachube.DataFormats.JSON)
+
+        key = txPachube.Key()
+        key.decode(TEST_API_KEY_JSON, format=txPachube.DataFormats.JSON) 
+        
+        key_list = txPachube.KeyList()
+        key_list.decode(TEST_API_KEYS_LIST_JSON, format=txPachube.DataFormats.JSON)
+
+        user = txPachube.User()
+        user.decode(TEST_USER_JSON, format=txPachube.DataFormats.JSON) 
+        
+        user_list = txPachube.UserList()
+        user_list.decode(TEST_USERS_LIST_JSON, format=txPachube.DataFormats.JSON)
+         
+        
+               
+     
+    def test_DecodeFromXml(self):
+        """ Check decode from XML format """
+        # Unit is only ever part of another structure, never alone.
+        # No need to explicitly test if Unit can be decoded from XML
+        
+        # Location is only ever part of another structure, never alone.
+        # No need to explicitly test if Unit can be decoded from XML
+        
+        datapoint = txPachube.Datapoint()
+        datapoint.decode(TEST_DATAPOINT_XML, format=txPachube.DataFormats.XML)
+
+        datastream = txPachube.Datastream()
+        datastream.decode(TEST_DATASTREAM_XML, format=txPachube.DataFormats.XML)
+
+        environment = txPachube.Environment()
+        environment.decode(TEST_FEED_XML, format=txPachube.DataFormats.XML)
+
+        environment_list = txPachube.EnvironmentList()
+        environment_list.decode(TEST_FEEDS_LIST_XML, format=txPachube.DataFormats.XML)
+
+        trigger = txPachube.Trigger()
+        trigger.decode(TEST_TRIGGER_XML, format=txPachube.DataFormats.XML)    
+
+        trigger_list = txPachube.TriggerList()
+        trigger_list.decode(TEST_TRIGGERS_LIST_XML, format=txPachube.DataFormats.XML) 
+         
+        key = txPachube.Key()
+        key.decode(TEST_API_KEY_XML, format=txPachube.DataFormats.XML) 
+        
+        key_list = txPachube.KeyList()
+        key_list.decode(TEST_API_KEYS_LIST_XML, format=txPachube.DataFormats.XML)        
+
+        user = txPachube.User()
+        user.decode(TEST_USER_XML, format=txPachube.DataFormats.XML) 
+        
+        user_list = txPachube.UserList()
+        user_list.decode(TEST_USERS_LIST_XML, format=txPachube.DataFormats.XML) 
+
+            
+    def tearDown(self):
+        pass
     
 
-    # datapoint
-    datapoint_kwargs = {txPachube.DataFields.At : "2010-04-12T11:31:51.133782Z", 
-                        txPachube.DataFields.Value : "999"}
-    test_datapoint = txPachube.Datapoint(**datapoint_kwargs)
-    
-    a = test_datapoint.toDict()
-    b = test_datapoint.toXml()
-    c = test_datapoint.encode(txPachube.DataFormats.JSON)
-    d = test_datapoint.encode(txPachube.DataFormats.XML)
-    test_datapoint.decode(TEST_DATAPOINT_JSON, format=txPachube.DataFormats.JSON)
-    test_datapoint.decode(TEST_DATAPOINT_XML, format=txPachube.DataFormats.XML)
-    
 
-    # datastream
-    datastream_kwargs = {txPachube.DataFields.At : "2010-04-12T11:31:52.133782Z",
-                         txPachube.DataFields.Current_Value : "27.0",
-                         txPachube.DataFields.Datapoints : [datapoint_kwargs],
-                         txPachube.DataFields.Id : 7021,
-                         txPachube.DataFields.Maximum_Value : "35.8",
-                         txPachube.DataFields.Minimum_Value : "15.9",
-                         txPachube.DataFields.Tags : ['temp', 'Temperature', 'C'],
-                         txPachube.DataFields.Unit : unit_kwargs,
-                         txPachube.DataFields.Updated : "2010-04-12T11:31:51.133782Z"}
-    test_datastream = txPachube.Datastream(**datastream_kwargs)    
+    def test_EncodeToJson(self):
+        """ Check encode to JSON format """
+        # This test performs a crude check to ensure the JSON output
+        # is valid JSON. Eventually it should be expanded to confirm
+        # the output content matches the values contained in local
+        # attributes.
+        
+        unit_kwargs = {txPachube.DataFields.Label : 'Celcius',
+                       txPachube.DataFields.Type : txPachube.Unit.Basic_Si,
+                       txPachube.DataFields.Symbol : "C"}
+        unit = txPachube.Unit(**unit_kwargs)
+        json_data = unit.encode(txPachube.DataFormats.JSON)
+        valid_json = json.loads(json_data)
 
-    a = test_datastream.toDict()
-    b = test_datastream.toXml()
-    c = test_datastream.encode(txPachube.DataFormats.JSON)
-    d = test_datastream.encode(txPachube.DataFormats.XML)
-    test_datastream.decode(TEST_DATASTREAM_JSON, format=txPachube.DataFormats.JSON)
-    test_datastream.decode(TEST_DATASTREAM_XML, format=txPachube.DataFormats.XML)
-    
-    
-    # environment
-    env_inDict = json.loads(TEST_FEED_JSON)
-    test_environment = txPachube.Environment(**env_inDict)
 
-    a = test_environment.toDict()
-    b = test_environment.toXml()
-    c = test_environment.encode(txPachube.DataFormats.JSON)
-    d = test_environment.encode(txPachube.DataFormats.XML)
-    test_environment.decode(TEST_FEED_JSON, format=txPachube.DataFormats.JSON)
-    test_environment.decode(TEST_FEED_XML, format=txPachube.DataFormats.XML)
-    
-    # environment list
-    envList_inDict = json.loads(TEST_FEEDS_LIST_JSON)
-    envList = txPachube.EnvironmentList(**envList_inDict)
 
-    a = envList.toDict()
-    b = envList.toXml()
-    c = envList.encode(txPachube.DataFormats.JSON)
-    d = envList.encode(txPachube.DataFormats.XML)
-    envList.decode(TEST_FEEDS_LIST_JSON, format=txPachube.DataFormats.JSON)
-    envList.decode(TEST_FEEDS_LIST_XML, format=txPachube.DataFormats.XML)
+        location_kwargs = {txPachube.DataFields.Disposition : txPachube.Location.Fixed,
+                           txPachube.DataFields.Domain : txPachube.Location.Physical,
+                           txPachube.DataFields.Elevation : "40",
+                           txPachube.DataFields.Exposure : txPachube.Location.Indoor,
+                           txPachube.DataFields.Latitude : 51.5235375648154,
+                           txPachube.DataFields.Longitude : -0.0807666778564453,
+                           txPachube.DataFields.Name : 'temp'}
+        location = txPachube.Location(**location_kwargs)
+        json_data = location.encode(txPachube.DataFormats.JSON)
+        valid_json = json.loads(json_data)
+        
+        
+        datapoint_kwargs = {txPachube.DataFields.At : "2010-04-12T11:31:51.133782Z", 
+                            txPachube.DataFields.Value : "999"}
+        datapoint = txPachube.Datapoint(**datapoint_kwargs)
+        json_data = datapoint.encode(txPachube.DataFormats.JSON)
 
-    
 
-    # trigger
-    trigger_inDict = json.loads(TEST_TRIGGER_JSON)
-    test_trigger = txPachube.Trigger(**trigger_inDict)
 
-    a = test_trigger.toDict()
-    b = test_trigger.toXml()
-    c = test_trigger.encode(txPachube.DataFormats.JSON)
-    d = test_trigger.encode(txPachube.DataFormats.XML)
-    test_trigger.decode(TEST_TRIGGER_JSON, format=txPachube.DataFormats.JSON)
-    test_trigger.decode(TEST_TRIGGER_XML, format=txPachube.DataFormats.XML)    
-    
-    # triggers list
-    trigger_list_inDict = {txPachube.DataFields.Datastream_Trigger : json.loads(TEST_TRIGGERS_LIST_JSON)}
-    test_trigger = txPachube.TriggerList(**trigger_list_inDict)
+        datastream_kwargs = {txPachube.DataFields.At : "2010-04-12T11:31:52.133782Z",
+                             txPachube.DataFields.Current_Value : "27.0",
+                             txPachube.DataFields.Datapoints : [datapoint_kwargs],
+                             txPachube.DataFields.Id : 7021,
+                             txPachube.DataFields.Maximum_Value : "35.8",
+                             txPachube.DataFields.Minimum_Value : "15.9",
+                             txPachube.DataFields.Tags : ['temp', 'Temperature', 'C'],
+                             txPachube.DataFields.Unit : unit_kwargs,
+                             txPachube.DataFields.Updated : "2010-04-12T11:31:51.133782Z"}
+        datastream = txPachube.Datastream(**datastream_kwargs)
+        json_data = datastream.encode(txPachube.DataFormats.JSON)
+        valid_json = json.loads(json_data)
+        
+        
+        env_inDict = json.loads(TEST_FEED_JSON)
+        environment = txPachube.Environment(**env_inDict)
+        json_data = environment.encode(txPachube.DataFormats.JSON)
+        valid_json = json.loads(json_data)
+        
+        
+        envList_inDict = json.loads(TEST_FEEDS_LIST_JSON)
+        environment_list = txPachube.EnvironmentList(**envList_inDict)
+        json_data = environment_list.encode(txPachube.DataFormats.JSON)
+        valid_json = json.loads(json_data)
+        
+        
+        trigger_inDict = json.loads(TEST_TRIGGER_JSON)
+        trigger = txPachube.Trigger(**trigger_inDict)
+        json_data = trigger.encode(txPachube.DataFormats.JSON)
+        valid_json = json.loads(json_data)
+        
+        
+        trigger_list_inDict = {txPachube.DataFields.Datastream_Trigger : json.loads(TEST_TRIGGERS_LIST_JSON)}
+        trigger_list = txPachube.TriggerList(**trigger_list_inDict)
+        json_data = trigger_list.encode(txPachube.DataFormats.JSON)
+        valid_json = json.loads(json_data)
+        
+        
+        key_inDict = json.loads(TEST_API_KEY_JSON)
+        key = txPachube.Key(**key_inDict)
+        json_data = key.encode(txPachube.DataFormats.JSON)
+        valid_json = json.loads(json_data)
+        
+        
+        key_list_inDict = json.loads(TEST_API_KEYS_LIST_JSON)
+        key_list = txPachube.KeyList(**key_list_inDict)
+        json_data = key_list.encode(txPachube.DataFormats.JSON)
+        valid_json = json.loads(json_data)
+        
+        
+        user_inDict = json.loads(TEST_USER_JSON)
+        user = txPachube.User(**user_inDict)
+        json_data = user.encode(txPachube.DataFormats.JSON)
+        valid_json = json.loads(json_data)
+        
+        
+        user_list_inDict = {txPachube.DataFields.Users : json.loads(TEST_USERS_LIST_JSON)}
+        user_list = txPachube.UserList(**user_list_inDict)        
+        json_data = user_list.encode(txPachube.DataFormats.JSON)
+        valid_json = json.loads(json_data)
+        
+        
+        
+    def test_EncodeToXml(self):
+        """ Check encode to XML format """
+        # This test performs a crude check to ensure the XML output
+        # is valid XML. Eventually it should be expanded to confirm
+        # the output content matches the values contained in local
+        # attributes.
+        
+        unit_kwargs = {txPachube.DataFields.Label : 'Celcius',
+                       txPachube.DataFields.Type : txPachube.Unit.Basic_Si,
+                       txPachube.DataFields.Symbol : "C"}
+        unit = txPachube.Unit(**unit_kwargs)
+        unit_xml = unit.encode(txPachube.DataFormats.XML)
+        valid_xml = etree.fromstring(unit_xml)
 
-    a = test_trigger.toDict()
-    b = test_trigger.toXml()
-    c = test_trigger.encode(txPachube.DataFormats.JSON)
-    d = test_trigger.encode(txPachube.DataFormats.XML)
-    test_trigger.decode(TEST_TRIGGERS_LIST_JSON, format=txPachube.DataFormats.JSON)
-    test_trigger.decode(TEST_TRIGGERS_LIST_XML, format=txPachube.DataFormats.XML) 
-    
 
-    # key 
-    api_key_inDict = json.loads(TEST_API_KEY_JSON)
-    test_key = txPachube.Key(**api_key_inDict)
+        location_kwargs = {txPachube.DataFields.Disposition : txPachube.Location.Fixed,
+                           txPachube.DataFields.Domain : txPachube.Location.Physical,
+                           txPachube.DataFields.Elevation : "40",
+                           txPachube.DataFields.Exposure : txPachube.Location.Indoor,
+                           txPachube.DataFields.Latitude : 51.5235375648154,
+                           txPachube.DataFields.Longitude : -0.0807666778564453,
+                           txPachube.DataFields.Name : 'temp'}
+        location = txPachube.Location(**location_kwargs)
+        location_xml = location.encode(txPachube.DataFormats.XML)
+        valid_xml = etree.fromstring(location_xml)
+        
+        
+        
+        datapoint_kwargs = {txPachube.DataFields.At : "2010-04-12T11:31:51.133782Z", 
+                            txPachube.DataFields.Value : "999"}
+        datapoint = txPachube.Datapoint(**datapoint_kwargs)
+        datapoint_xml = datapoint.encode(txPachube.DataFormats.XML)
+        valid_xml = etree.fromstring(datapoint_xml)
 
-    a = test_key.toDict()
-    b = test_key.toXml()
-    c = test_key.encode(txPachube.DataFormats.JSON)
-    d = test_key.encode(txPachube.DataFormats.XML)
-    test_key.decode(TEST_API_KEY_JSON, format=txPachube.DataFormats.JSON)
-    test_key.decode(TEST_API_KEY_XML, format=txPachube.DataFormats.XML) 
-    
 
-    # key list
-    key_list_inDict = json.loads(TEST_API_KEYS_LIST_JSON)
-    test_key_list = txPachube.KeyList(**key_list_inDict)
 
-    a = test_key_list.toDict()
-    b = test_key_list.toXml()
-    c = test_key_list.encode(txPachube.DataFormats.JSON)
-    d = test_key_list.encode(txPachube.DataFormats.XML)
-    test_key_list.decode(TEST_API_KEYS_LIST_JSON, format=txPachube.DataFormats.JSON)
-    test_key_list.decode(TEST_API_KEYS_LIST_XML, format=txPachube.DataFormats.XML)
-    
-    # user 
-    user_inDict = json.loads(TEST_USER_JSON)
-    test_user = txPachube.User(**user_inDict)
+        datastream_kwargs = {txPachube.DataFields.At : "2010-04-12T11:31:52.133782Z",
+                             txPachube.DataFields.Current_Value : "27.0",
+                             txPachube.DataFields.Datapoints : [datapoint_kwargs],
+                             txPachube.DataFields.Id : 7021,
+                             txPachube.DataFields.Maximum_Value : "35.8",
+                             txPachube.DataFields.Minimum_Value : "15.9",
+                             txPachube.DataFields.Tags : ['temp', 'Temperature', 'C'],
+                             txPachube.DataFields.Unit : unit_kwargs,
+                             txPachube.DataFields.Updated : "2010-04-12T11:31:51.133782Z"}
+        datastream = txPachube.Datastream(**datastream_kwargs)
+        datastream_xml = datastream.encode(txPachube.DataFormats.XML)
+        valid_xml = etree.fromstring(datastream_xml)
+        
+        
+        
+        env_inDict = json.loads(TEST_FEED_JSON)
+        environment = txPachube.Environment(**env_inDict)
+        environment_xml = environment.encode(txPachube.DataFormats.XML)
+        valid_xml = etree.fromstring(environment_xml)
+        
+        
+        
+        envList_inDict = json.loads(TEST_FEEDS_LIST_JSON)
+        environment_list = txPachube.EnvironmentList(**envList_inDict)
+        environment_list_xml = environment_list.encode(txPachube.DataFormats.XML)
+        valid_xml = etree.fromstring(environment_list_xml)
+        
+        
+        trigger_inDict = json.loads(TEST_TRIGGER_JSON)
+        trigger = txPachube.Trigger(**trigger_inDict)
+        trigger_xml = trigger.encode(txPachube.DataFormats.XML)
+        valid_xml = etree.fromstring(trigger_xml)
+        
+        
+        trigger_list_inDict = {txPachube.DataFields.Datastream_Trigger : json.loads(TEST_TRIGGERS_LIST_JSON)}
+        trigger_list = txPachube.TriggerList(**trigger_list_inDict)
+        trigger_list_xml = trigger_list.encode(txPachube.DataFormats.XML)
+        valid_xml = etree.fromstring(trigger_list_xml)
+        
+        
+        key_inDict = json.loads(TEST_API_KEY_JSON)
+        key = txPachube.Key(**key_inDict)
+        key_xml = key.encode(txPachube.DataFormats.XML)
+        valid_xml = etree.fromstring(key_xml)
+        
+        
+        key_list_inDict = json.loads(TEST_API_KEYS_LIST_JSON)
+        key_list = txPachube.KeyList(**key_list_inDict)
+        key_list_xml = key_list.encode(txPachube.DataFormats.XML)
+        valid_xml = etree.fromstring(key_list_xml)
+        
+        
+        user_inDict = json.loads(TEST_USER_JSON)
+        user = txPachube.User(**user_inDict)
+        user_xml = user.encode(txPachube.DataFormats.XML)
+        valid_xml = etree.fromstring(user_xml)
+        
+        
+        user_list_inDict = {txPachube.DataFields.Users : json.loads(TEST_USERS_LIST_JSON)}
+        user_list = txPachube.UserList(**user_list_inDict)        
+        user_list_xml = user_list.encode(txPachube.DataFormats.XML)             
+        valid_xml = etree.fromstring(user_list_xml)
+        
+        
+suite = unittest.TestLoader().loadTestsFromTestCase(DataStructureTestCase)
 
-    a = test_user.toDict()
-    b = test_user.toXml()
-    c = test_user.encode(txPachube.DataFormats.JSON)
-    d = test_user.encode(txPachube.DataFormats.XML)
-    test_user.decode(TEST_USER_JSON, format=txPachube.DataFormats.JSON)
-    test_user.decode(TEST_USER_XML, format=txPachube.DataFormats.XML) 
-    
-
-    # user list
-    user_list_inDict = {txPachube.DataFields.Users : json.loads(TEST_USERS_LIST_JSON)}
-    test_user_list = txPachube.UserList(**user_list_inDict)
-
-    a = test_user_list.toDict()
-    b = test_user_list.toXml()
-    c = test_user_list.encode(txPachube.DataFormats.JSON)
-    d = test_user_list.encode(txPachube.DataFormats.XML)
-    test_user_list.decode(TEST_USERS_LIST_JSON, format=txPachube.DataFormats.JSON)
-    test_user_list.decode(TEST_USERS_LIST_XML, format=txPachube.DataFormats.XML)    
-    
     
               
 if __name__ == "__main__":
-    import logging
-    logging.basicConfig(level=logging.DEBUG)
+
+    runner = unittest.TextTestRunner()
+    runner.run(suite)
     
-    test_data_structures()
-    print "Done"
     
 
 

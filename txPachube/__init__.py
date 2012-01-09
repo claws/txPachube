@@ -151,7 +151,7 @@ class DataFields(object):
     Unit = 'unit'
     User = 'user'
     Users = 'users'
-    Updated = 'Updated'
+    Updated = 'updated'
     Url = 'url'
     Value = 'value'
     Version = 'version'
@@ -217,7 +217,7 @@ class DataStructure(object):
             eeml.attrib['xmlns'] = 'http://www.eeml.org/xsd/0.5.1'
             eeml.attrib['xmlns:xsi'] = 'http://www.w3.org/2001/XMLSchema-instance'
             eeml.attrib['version'] = '0.5.1'
-            eeml.attrib['xsi:schemaLocation'] = 'http://www.eeml.org/xsd/005 http://www.eeml.org/xsd/005/005.xsd'
+            eeml.attrib['xsi:schemaLocation'] = 'http://www.eeml.org/xsd/005'
             eeml.append(self.toXml())
             return etree.tostring(eeml, 'utf-8')            
 
@@ -576,7 +576,8 @@ class Datastream(DataStructure):
                             DataFields.Maximum_Value,
                             DataFields.Minimum_Value,
                             DataFields.Tags,
-                            DataFields.Unit]
+                            DataFields.Unit,
+                            DataFields.Updated]
         self.at = None
         self.current_value = None
         self.datapoints = []
@@ -585,6 +586,7 @@ class Datastream(DataStructure):
         self.min_value = None
         self.tags = []
         self.unit = None
+        self.updated = None
 
         # initialise attributes to specified values.
         self.fromDict(kwargs)
@@ -668,7 +670,11 @@ class Datastream(DataStructure):
                         
         if self.unit:
             data.append(self.unit.toXml())
-            
+
+        if self.updated:
+            updated = etree.SubElement(data, DataFields.Updated)
+            updated.text = str(self.updated)
+                        
         if self.datapoints:
             datapoints = etree.SubElement(data, DataFields.Datapoints)
             for datapoint in self.datapoints:
@@ -697,25 +703,28 @@ class Datastream(DataStructure):
                     
             current_value = data.find(DataFields.Current_Value)
             if current_value is not None:
-                self.current_value = current_value
+                self.current_value = current_value.text
                 at_time = current_value.attrib.get(DataFields.At, None)
                 if at_time:
                     self.at = at_time
                 
             max_value = data.find(DataFields.Maximum_Value)
             if max_value is not None:
-                self.max_value = max_value           
+                self.max_value = max_value .text          
 
             min_value = data.find(DataFields.Minimum_Value)
             if min_value is not None:
-                self.min_value = min_value
+                self.min_value = min_value.text
             
             unit = data.find(DataFields.Unit)
             if unit is not None:
                 self.unit = Unit()
                 self.unit.fromXml(unit)
                 
-                
+            updated = data.find(DataFields.Updated)
+            if updated is not None:
+                self.updated = updated.text
+                                
             datapoints = data.find(DataFields.Datapoints)
             if datapoints is not None:
                 self.datapoints = []
@@ -751,8 +760,10 @@ class Datastream(DataStructure):
         
     def clear(self):
         """
-        Clear current value and datapoints. This method is called
-        after Pachube has been updated with the current contents.
+        Clear current value and datapoints. This method exists so that the
+        datapoints and current value can be cleared after they have been posted
+        to Pachube. This would only be necessary if users wanted to keep this
+        object between Pachube updates.
         """
         self.current_value = None
         del self.datapoints[:]
@@ -881,7 +892,7 @@ class Environment(DataStructure):
         if self.tags:
             for tag_text in self.tags:
                 tag = etree.SubElement(env, DataFields.Tag)
-                desc.text = str(tag_text)
+                tag.text = str(tag_text)
         if self.title:
             title = etree.SubElement(env, DataFields.Title)
             title.text = str(self.title)
@@ -1092,7 +1103,7 @@ class EnvironmentList(DataStructure):
 
     # The txPachube implementation never sends this structure to Pachube.
     # It only ever receives environment lists from Pachube.
-    # Therefore toXml and encode methods are not required    
+    # Therefore toXml and encode methods are not really required.    
     def toXml(self):
         """ 
         Return the object as an xml ElementTree
@@ -1101,7 +1112,7 @@ class EnvironmentList(DataStructure):
         @rtype: etree.Element
         """
         return None
-    
+
 
     def fromXml(self, element):
         """
@@ -1126,11 +1137,38 @@ class EnvironmentList(DataStructure):
         
     def encode(self, format=DataFormats.JSON):
         """ 
-        Return a string representation of the object encoded in the specified format
+        Return a string representation of the object encoded in the specified format.
+        Override the default inherited implementation so we can add the opensearch
+        element.
         """
         # the txPachube implementation only ever receives environment lists from Pachube.
         # It never sends them, hence this method is never used.
-        pass
+        """ 
+        Return a string representation of the object encoded in the specified format
+        """
+        if format == DataFormats.JSON:
+            return json.dumps(self.toDict())
+        
+        elif format == DataFormats.XML:
+            eeml = etree.Element('eeml')
+            eeml.attrib['xmlns'] = 'http://www.eeml.org/xsd/0.5.1'
+            eeml.attrib['xmlns:xsi'] = 'http://www.w3.org/2001/XMLSchema-instance'
+            #eeml.attrib['xmlns:opensearch'] = "http://a9.com/-/spec/opensearch/1.1/"
+            eeml.attrib['version'] = '0.5.1'
+            eeml.attrib['xsi:schemaLocation'] = 'http://www.eeml.org/xsd/005'
+            total_results = etree.SubElement(eeml, '{%s}%s' % (namespace_map[OPENSEARCH_NAMESPACE], DataFields.Total_Results))
+            total_results.text = str(self.total_results)
+            startIndex = etree.SubElement(eeml, '{%s}startIndex' % (namespace_map[OPENSEARCH_NAMESPACE]))
+            startIndex.text = "0"
+            itemsPerPage = etree.SubElement(eeml, '{%s}itemsPerPage' % (namespace_map[OPENSEARCH_NAMESPACE]))
+            itemsPerPage.text = "50"
+            for feed in self.feeds:
+                eeml.append(feed.toXml())
+            return etree.tostring(eeml, 'utf-8')            
+
+        else:
+            raise Exception("Don't know how to encode %s using format %s" % (self.__class__.__name__,
+                                                                             format))
 
     
     
@@ -1362,12 +1400,16 @@ class TriggerList(DataStructure):
         # this object to be initialised and decoded, the list is wrapped
         # in a dict with a key identical to the XML verison which is
         # DataFields.Datastream_Trigger.
-        # Remove the wrapper dict to access triggers list
-
-        triggersList = inDict[DataFields.Datastream_Trigger]
-        self.triggers = []
-        for triggerDict in triggersList:
-            self.triggers.append(Trigger(**triggerDict))
+        # This provides a consistent interface (dict/kwargs input).
+        # Remove the wrapper dict to access triggers list, but check
+        # that it exists first because the object should be initialisable
+        # without kwargs present at all.
+        # 
+        triggersList = inDict.get(DataFields.Datastream_Trigger, None)
+        if triggersList:
+            self.triggers = []
+            for triggerDict in triggersList:
+                self.triggers.append(Trigger(**triggerDict))
     
     
     def toXml(self, parent=None):
@@ -2004,8 +2046,12 @@ class UserList(DataStructure):
         # this object to be initialised and decoded, the list is wrapped
         # in a dict with a key identical to the XML verison which is
         # DataFields.Users.
-        # Remove the wrapper dict to access triggers list
-        usersList = inDict[DataFields.Users]
+        # This provides a consistent interface (dict/kwargs input).
+        # Remove the wrapper dict to access users list, but check
+        # that it exists first because the object should be initialisable
+        # without kwargs present at all.
+        # 
+        usersList = inDict.get(DataFields.Users, None)
         if usersList:
             self.users = []
             for userDict in usersList:
