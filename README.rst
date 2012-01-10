@@ -2,7 +2,7 @@ txPachube
 =========
 
 txPachube is a Python wrapper for the v2 Pachube `API <http://api.pachube.com/v2/>`_, based on the Twisted networking framework.
-Use it to integrate non blocking access to the Pachube API into your Python Twisted application.
+Use txPachube to integrate non blocking access to the Pachube API into your Python Twisted application.
 
 It implements the full Pachube API (Feeds, Datastreams, Datapoints, Triggers, Users, Keys) and many 
 of the data structures (Unit, Location, Datapoint, Datastream, Environment, EnvironmentList, Trigger,
@@ -27,17 +27,17 @@ Software Dependencies
 Install
 =======
 
-1. Download txPachube archive.
+1. Download txPachube archive::
 
     $ git clone git://github.com/claws/txPachube.git
     
 For other download options (zip, tarball) visit the github web page of `txPachube <https://github.com/claws/txPachube>_`
 
-2. Install txPachube module into your Python distribution.
+2. Install txPachube module into your Python distribution::
   
     sudo python setup.py install
     
-3. Test
+3. Test::
 
     $ python
     >>> import txPachube

@@ -693,10 +693,7 @@ class DataStructureTestCase(unittest.TestCase):
         user_list = txPachube.UserList()
         user_list.decode(TEST_USERS_LIST_XML, format=txPachube.DataFormats.XML) 
 
-            
-    def tearDown(self):
-        pass
-    
+
 
 
     def test_EncodeToJson(self):
@@ -896,7 +893,11 @@ class DataStructureTestCase(unittest.TestCase):
         user_list_xml = user_list.encode(txPachube.DataFormats.XML)             
         valid_xml = etree.fromstring(user_list_xml)
         
-        
+            
+    def tearDown(self):
+        pass
+    
+            
 suite = unittest.TestLoader().loadTestsFromTestCase(DataStructureTestCase)
 
     
