@@ -9,7 +9,7 @@ located at: http://api.pachube.com/v2/
 Much of the API documentation has been shamelessly duplicated within the
 method docstrings. The documentation on the Pachube API seems quite clear.
 Embedding the documentation within the docstrings means that the Python
-help(txPachube) output will be useful.
+help(txpachube) output will be useful.
 Always refer back to the Pachube site for the most recent, up to date, API
 documentation.
 
@@ -164,7 +164,7 @@ class DataStructure(object):
     Base class for Pachube data structure objects
     
     Serialized versions of objects deriving from this class are passed between
-    the Pachube API and the txPachube client. These structures are designed in
+    the Pachube API and the txpachube client. These structures are designed in
     such a way that they can be used for JSON or XML (EEML).
     """
     
@@ -1101,7 +1101,7 @@ class EnvironmentList(DataStructure):
                 self.feeds.append(Environment(**result))
     
 
-    # The txPachube implementation never sends this structure to Pachube.
+    # The txpachube implementation never sends this structure to Pachube.
     # It only ever receives environment lists from Pachube.
     # Therefore toXml and encode methods are not really required.    
     def toXml(self):
@@ -1141,7 +1141,7 @@ class EnvironmentList(DataStructure):
         Override the default inherited implementation so we can add the opensearch
         element.
         """
-        # the txPachube implementation only ever receives environment lists from Pachube.
+        # the txpachube implementation only ever receives environment lists from Pachube.
         # It never sends them, hence this method is never used.
         """ 
         Return a string representation of the object encoded in the specified format

@@ -6,7 +6,7 @@
 #except ImportError:
 #    import xml.etree.ElementTree as etree
 #import json
-import txPachube
+import txpachube
 import logging
 import urllib
 from twisted.internet import reactor, defer
@@ -128,7 +128,7 @@ class Client(object):
         self.agent = Agent(reactor)
         
         # Common header settings used in every request.
-        self.headers = {'User-Agent': 'txPachube Client',
+        self.headers = {'User-Agent': 'txpachube Client',
                         'Content-Type' : 'application/x-www-form-urlencoded'}    
         
 #        self.environment = None
@@ -205,7 +205,7 @@ class Client(object):
         """
         Convert the data into a DataStructure object
         """
-        dataStructureClass = txPachube.getDataStructure(kind)
+        dataStructureClass = txpachube.getDataStructure(kind)
         dataStructure = dataStructureClass
         dataStructure.decode(data, format)
         return dataStructure
@@ -367,7 +367,7 @@ class Client(object):
     #
     
     
-    def list_feeds(self, api_key=None, format=txPachube.DataFormats.JSON, parameters=None):
+    def list_feeds(self, api_key=None, format=txpachube.DataFormats.JSON, parameters=None):
         """ 
         Returns a paged list of Pachube's feeds that are viewable by 
         the authenticated account with a default page size of 50 feeds.
@@ -473,11 +473,11 @@ class Client(object):
         
         d = self._get(url, headers)
         d.addCallback(self._getResponseBody)
-        d.addCallback(self._convertToPachubeStructure, format, txPachube.List_Feeds_Msg)
+        d.addCallback(self._convertToPachubeStructure, format, txpachube.List_Feeds_Msg)
         return d
         
         
-    def create_feed(self, api_key=None, format=txPachube.DataFormats.JSON, data=None):
+    def create_feed(self, api_key=None, format=txpachube.DataFormats.JSON, data=None):
         """ 
         Returns a paged list of Pachube's feeds that are viewable by 
         the authenticated account with a default page size of 50 feeds.
@@ -504,7 +504,7 @@ class Client(object):
             return feed_id
                     
         
-        if format == txPachube.DataFormats.CSV:
+        if format == txpachube.DataFormats.CSV:
             raise Exception("CSV format is not supported for creating feeds")
         
         url = "%s/feeds.%s" % (self.api_url, format)
@@ -520,7 +520,7 @@ class Client(object):
         return d
     
     
-    def read_feed(self, api_key=None, feed_id=None, format=txPachube.DataFormats.JSON, parameters=None):
+    def read_feed(self, api_key=None, feed_id=None, format=txpachube.DataFormats.JSON, parameters=None):
         """ 
         Returns the most recent datastreams for environment [feed_id], viewable by the api_key provided
         
@@ -533,9 +533,9 @@ class Client(object):
         @param parameters: Additional parameters to configure the search query.
         @type parameters: dict
         
-        @return: A deferred that returns a txPachube.Environment object populated
+        @return: A deferred that returns a txpachube.Environment object populated
                  from the body of the response.
-        @rtype: txPachube.Environment
+        @rtype: txpachube.Environment
         
         
         Available settings for parameters:
@@ -639,11 +639,11 @@ class Client(object):
         
         d = self._get(url, headers)
         d.addCallback(self._getResponseBody)
-        d.addCallback(self._convertToPachubeStructure, format, txPachube.View_Feed_Msg)
+        d.addCallback(self._convertToPachubeStructure, format, txpachube.View_Feed_Msg)
         return d        
         
         
-    def update_feed(self, api_key=None, feed_id=None, format=txPachube.DataFormats.JSON, data=None):
+    def update_feed(self, api_key=None, feed_id=None, format=txpachube.DataFormats.JSON, data=None):
         """
         Updates [environment ID]'s environment and datastreams. If successful, the 
         current datastream values are stored and any changes in environment metadata
@@ -719,7 +719,7 @@ class Client(object):
     # Datastreams
     #
     
-    def create_datastream(self, api_key=None, feed_id=None, format=txPachube.DataFormats.JSON, data=None):
+    def create_datastream(self, api_key=None, feed_id=None, format=txpachube.DataFormats.JSON, data=None):
         """
         Creates new datastream(s) in environment [feed ID]. The body of the request 
         should contain a JSON, XML or CSV representation of the datastream to be created.
@@ -755,7 +755,7 @@ class Client(object):
         return d
            
         
-    def read_datastream(self, api_key=None, feed_id=None, datastream_id=None, format=txPachube.DataFormats.JSON, parameters=None): 
+    def read_datastream(self, api_key=None, feed_id=None, datastream_id=None, format=txpachube.DataFormats.JSON, parameters=None): 
         """
         Read the requested datastream.
 
@@ -882,11 +882,11 @@ class Client(object):
         
         d = self._get(url, headers)
         d.addCallback(self._getResponseBody)
-        d.addCallback(self._convertToPachubeStructure, format, txPachube.View_Datastream_Msg)
+        d.addCallback(self._convertToPachubeStructure, format, txpachube.View_Datastream_Msg)
         return d
          
         
-    def update_datastream(self, api_key=None, feed_id=None, datastream_id=None, format=txPachube.DataFormats.JSON, data=None):
+    def update_datastream(self, api_key=None, feed_id=None, datastream_id=None, format=txpachube.DataFormats.JSON, data=None):
         """
         Update a single datastream
 
@@ -963,7 +963,7 @@ class Client(object):
     #
     
     
-    def create_datapoints(self, api_key=None, feed_id=None, datastream_id=None, format=txPachube.DataFormats.JSON, data=None):
+    def create_datapoints(self, api_key=None, feed_id=None, datastream_id=None, format=txpachube.DataFormats.JSON, data=None):
         """
         Creates new datapoints for datastream. The body of the request 
         should contain a JSON, XML or CSV representation of the datastream to be created.
@@ -1013,7 +1013,7 @@ class Client(object):
         return d
     
     
-    def read_datapoint(self, api_key=None, feed_id=None, datastream_id=None, format=txPachube.DataFormats.JSON, timestamp=None): 
+    def read_datapoint(self, api_key=None, feed_id=None, datastream_id=None, format=txpachube.DataFormats.JSON, timestamp=None): 
         """
         Read a specific datapoint from the specified timestamp.
 
@@ -1048,11 +1048,11 @@ class Client(object):
         
         d = self._get(url, headers)
         d.addCallback(self._getResponseBody)
-        d.addCallback(self._convertToPachubeStructure, format, txPachube.View_Datapoint_Msg)
+        d.addCallback(self._convertToPachubeStructure, format, txpachube.View_Datapoint_Msg)
         return d
     
     
-    def update_datapoint(self, api_key=None, feed_id=None, datastream_id=None, format=txPachube.DataFormats.JSON, timestamp=None, data=None):
+    def update_datapoint(self, api_key=None, feed_id=None, datastream_id=None, format=txpachube.DataFormats.JSON, timestamp=None, data=None):
         """
         Modify the value of a datapoint at the specified timestamp
 
@@ -1204,7 +1204,7 @@ class Client(object):
     #
     
     
-    def list_triggers(self, api_key=None, format=txPachube.DataFormats.JSON):
+    def list_triggers(self, api_key=None, format=txpachube.DataFormats.JSON):
         """ 
         Retrieve a list of all triggers for the authenticated account
 
@@ -1229,11 +1229,11 @@ class Client(object):
 
         d = self._get(url, headers)
         d.addCallback(self._getResponseBody)
-        d.addCallback(self._convertToPachubeStructure, format, txPachube.List_Triggers_Msg)
+        d.addCallback(self._convertToPachubeStructure, format, txpachube.List_Triggers_Msg)
         return d        
             
         
-    def create_trigger(self, api_key=None, format=txPachube.DataFormats.JSON, data=None):
+    def create_trigger(self, api_key=None, format=txpachube.DataFormats.JSON, data=None):
         """
         Create a trigger
 
@@ -1271,7 +1271,7 @@ class Client(object):
         return d        
         
         
-    def read_trigger(self, api_key=None, trigger_id=None, format=txPachube.DataFormats.JSON):
+    def read_trigger(self, api_key=None, trigger_id=None, format=txpachube.DataFormats.JSON):
         """ 
         Returns a representation of a trigger 
         
@@ -1301,11 +1301,11 @@ class Client(object):
         
         d = self._get(url, headers)
         d.addCallback(self._getResponseBody)
-        d.addCallback(self._convertToPachubeStructure, format, txPachube.View_Trigger_Msg)
+        d.addCallback(self._convertToPachubeStructure, format, txpachube.View_Trigger_Msg)
         return d        
         
         
-    def update_trigger(self, api_key=None, trigger_id=None, format=txPachube.DataFormats.JSON, data=None):
+    def update_trigger(self, api_key=None, trigger_id=None, format=txpachube.DataFormats.JSON, data=None):
         """
         Updates an existing trigger object. 
 
@@ -1373,7 +1373,7 @@ class Client(object):
     #
     
     
-    def list_users(self, api_key=None, format=txPachube.DataFormats.JSON):
+    def list_users(self, api_key=None, format=txpachube.DataFormats.JSON):
         """ 
         Retrieve a list of all users for the authenticated account
 
@@ -1398,11 +1398,11 @@ class Client(object):
 
         d = self._get(url, headers)
         d.addCallback(self._getResponseBody)
-        d.addCallback(self._convertToPachubeStructure, format, txPachube.List_Users_Msg)
+        d.addCallback(self._convertToPachubeStructure, format, txpachube.List_Users_Msg)
         return d 
     
     
-    def create_user(self, api_key=None, format=txPachube.DataFormats.JSON, data=None):
+    def create_user(self, api_key=None, format=txpachube.DataFormats.JSON, data=None):
         """
         Create a user
 
@@ -1440,7 +1440,7 @@ class Client(object):
         return d
     
     
-    def read_user(self, api_key=None, user_id=None, format=txPachube.DataFormats.JSON):
+    def read_user(self, api_key=None, user_id=None, format=txpachube.DataFormats.JSON):
         """ 
         Returns the details of a specific user 
         
@@ -1468,11 +1468,11 @@ class Client(object):
         
         d = self._get(url, headers)
         d.addCallback(self._getResponseBody)
-        d.addCallback(self._convertToPachubeStructure, format, txPachube.View_User_Msg)
+        d.addCallback(self._convertToPachubeStructure, format, txpachube.View_User_Msg)
         return d 
     
     
-    def update_user(self, api_key=None, user_id=None, format=txPachube.DataFormats.JSON, data=None):
+    def update_user(self, api_key=None, user_id=None, format=txpachube.DataFormats.JSON, data=None):
         """
         Updates details of an existing user object. 
 
@@ -1538,7 +1538,7 @@ class Client(object):
     #
     
     
-    def list_api_keys(self, api_key=None, format=txPachube.DataFormats.JSON):
+    def list_api_keys(self, api_key=None, format=txpachube.DataFormats.JSON):
         """ 
         Retrieve a list of all keys for the authenticated account.
 
@@ -1562,12 +1562,12 @@ class Client(object):
 
         d = self._get(url, headers)
         d.addCallback(self._getResponseBody)
-        if format == txPachube.DataFormats.JSON:
+        if format == txpachube.DataFormats.JSON:
             d.addCallback(self._convertJsonToDict)
         return d
     
     
-    def create_api_key(self, api_key=None, format=txPachube.DataFormats.JSON, data=None):
+    def create_api_key(self, api_key=None, format=txpachube.DataFormats.JSON, data=None):
         """
         Create a new API key
 
@@ -1600,12 +1600,12 @@ class Client(object):
                
         d = self._post(url, headers, data)
         d.addCallback(self._getResponseBody)
-        if format == txPachube.DataFormats.JSON:
+        if format == txpachube.DataFormats.JSON:
             d.addCallback(self._convertJsonToDict)
         return d
     
     
-    def read_api_key(self, api_key=None, key_id=None, format=txPachube.DataFormats.JSON):
+    def read_api_key(self, api_key=None, key_id=None, format=txpachube.DataFormats.JSON):
         """ 
         Returns the details of a specific API Key 
         
@@ -1633,7 +1633,7 @@ class Client(object):
         
         d = self._get(url, headers)
         d.addCallback(self._getResponseBody)
-        if format == txPachube.DataFormats.JSON:
+        if format == txpachube.DataFormats.JSON:
             d.addCallback(self._convertJsonToDict)
         return d 
     

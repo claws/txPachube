@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 
 """
-A distutils installation script for txPachube.
+A distutils installation script for txpachube.
 """
 
 from distutils.core import setup
-import txPachube
+import txpachube
 
 
 long_description = """txPachube is a Python wrapper for the v2 Pachube API, based on the Twisted networking framework. Use it to integrate non blocking access to the Pachube API into your Python Twisted application.
@@ -17,15 +17,15 @@ The data structures support encoding and decoding from JSON/XML formats. These s
 
 
 setup(name='txPachube',
-      version='.'.join(txPachube.version),
-      description='txPachube is a Python wrapper for the v2 Pachube API, based on the Twisted networking framework',
+      version='.'.join(txpachube.version),
+      description='txpachube is a Python wrapper for the v2 Pachube API, based on the Twisted networking framework',
       long_description=long_description,
       author='Chris Laws',
       author_email='clawsicus@gmail.com',
       license='http://www.opensource.org/licenses/mit-license.php',
       url='https://github.com/claws/txPachube',
       download_url='https://github.com/claws/txPachube/tarball/master',
-      packages=['txPachube'],
+      packages=['txpachube'],
       classifiers=['Development Status :: 4 - Beta',
                    'Environment :: Console',
                    'Intended Audience :: End Users/Desktop',
