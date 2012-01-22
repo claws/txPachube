@@ -1,16 +1,14 @@
 #!/usr/bin/env python
 
 
-#try:
-#    from xml.etree import cElementTree as etree
-#except ImportError:
-#    import xml.etree.ElementTree as etree
-#import json
-import txpachube
+
+import json
 import logging
+import txpachube
 import urllib
+import uuid
 from twisted.internet import reactor, defer
-from twisted.internet.protocol import Protocol
+from twisted.internet.protocol import Protocol, ReconnectingClientFactory
 from twisted.web.client import Agent, ResponseDone
 from twisted.web.http_headers import Headers
 from twisted.web.iweb import IBodyProducer
@@ -460,8 +458,7 @@ class Client(object):
         
     def create_feed(self, api_key=None, format=txpachube.DataFormats.JSON, data=None):
         """ 
-        Returns a paged list of Pachube's feeds that are viewable by 
-        the authenticated account with a default page size of 50 feeds.
+        Creates a new feed.
         
         @param api_key: An api key with authorization settings allowing this action to be performed
         @type api_key: string
@@ -1646,3 +1643,792 @@ class Client(object):
         d.addCallback(self._getResponseCodeStatusFromHeader)
         return d
 
+
+
+
+################################################################################
+################################################################################
+#
+#       Pachube Advanced Web-scale Socket server (PAWS) Client
+#
+#
+################################################################################
+################################################################################
+
+
+class PAWSProtocol(Protocol):
+    """
+    A instance of this protocol communications with the Pachube PAWS service
+    """
+    
+    delimiter = '\n'
+    
+    def __init__(self):
+        self.buffer = ""
+    
+    def connectionMade(self):
+        # register this protocol with the factory so it can be
+        # disconnected later if necessary.
+        peer = self.transport.getPeer()
+        addr = "%s:%s" % (peer.host, peer.port)
+        self.factory.registerConnection(self)
+
+
+    def disconnect(self):
+        self.transport.loseConnection()
+        
+        
+    def dataReceived(self, data):
+        """
+        Store data received from PAWS service in a buffer until a
+        message delimiter is encountered then pass any messages
+        back to the client through the factory's messageHandler.
+        """
+        self.buffer += data
+        if PAWSProtocol.delimiter in self.buffer:
+            msgs = self.buffer.split(PAWSProtocol.delimiter)
+            for msg in msgs[:-1]:
+                self.factory.messageHandler(msg)
+            self.buffer = msgs[-1]
+        else:
+            logging.debug("No message delimiter found yet.")
+            
+    def send(self, data):
+        """
+        Send data to the PAWS service
+        """
+        self.transport.write(data)
+
+            
+            
+class PAWSProtocolFactory(ReconnectingClientFactory):
+    """
+    This factory is responsible for managing the connection to the PAWS
+    service. Only one protocol instance is required per client. This 
+    factory will also attempt to automatically reconnect if an exisitng
+    connection is lost.
+    """
+    
+    port = 8081
+    host = 'beta.pachube.com'
+    
+    def __init__(self, messageHandler):
+        self.connection = None
+        self.connected = False
+        self.messageHandler = messageHandler
+        
+        # These attributes are used during the connect/disconnect sequence
+        # to inform caller that the sequence has completed and to provide
+        # the state of the connect/disconnect request.
+        self._connectDeferred = None
+        self._disconnectDeferred = None
+        
+
+    def _connectionStateHandler(self, state):
+        """
+        Store internal connected-ness state and fire any pending deferred's
+        waiting on notification of requested connect/disconnect actions.
+        """
+        self.connected = state
+        
+        # call any pending connection state notifiers
+        if self._connectDeferred:
+            self._connectDeferred.callback(state)
+            self._connectDeferred = None
+            
+        if self._disconnectDeferred:
+            # Invert the connection state to obtain the success state
+            # of a disconnection request.
+            disconnectedState = not state
+            self._disconnectDeferred.callback(disconnectedState)
+            self._disconnectDeferred = None
+
+        
+    def connect(self):
+        """
+        Establish a connection to the Pachube PAWS service if there
+        is no current connection established.
+        
+        @return: A deferred which fires with a boolean representing the
+                 success of the connection request.
+        @rtype: defer.Deferred
+        """
+        if self.connection is None:
+            reactor.connectTCP(PAWSProtocolFactory.host, 
+                               PAWSProtocolFactory.port, 
+                               self)
+            self._connectDeferred = defer.Deferred()
+            return self._connectDeferred
+        else:
+            logging.warning("Already connected, ignoring connect request")
+            return defer.succeed(True)
+    
+
+    def disconnect(self):
+        """
+        Break the connection to the Pachube PAWS service.
+        
+        @return: A deferred which fires with a boolean representing the
+                 success of the disconnection request.
+        @rtype: defer.Deferred
+        """
+        if self.connection:
+            self.connection.disconnect()
+            self.continueTrying = False # disable automatic reconnection attempts
+            self._disconnectDeferred = defer.Deferred()
+            return self._disconnectDeferred
+        else:
+            logging.warning("Already disconnected, ignoring disconnect request")
+            return defer.succeed(True)
+
+                       
+#    def startedConnecting(self, connector):
+#        logging.debug('Started to connect to PAWS service.')
+
+    def registerConnection(self, proto):
+        """
+        Called from the protocol to inform the factory that a connection
+        has been made tothe PAWS service.
+        
+        @param proto: The protocol connected to the PAWS service
+        @type proto: a PAWSProtocol instance
+        """
+        self.connection = proto
+        self._connectionStateHandler(True)
+        
+        
+    def buildProtocol(self, addr):
+        """
+        Builds an instance of the PAWSProtocol. Called from witihin the 
+        reactor.connectTCP method.
+        """
+        # allow automatic reconneciton attempts, that might have been 
+        # diabled through the disconnect method.
+        self.continueTrying = True
+        # initialise reconnection attempt delay
+        self.resetDelay()
+        p = PAWSProtocol()
+        p.factory = self
+        return p
+
+
+    def clientConnectionLost(self, connector, reason):
+        logging.debug('PAWS connection lost.  Reason: %s' %  reason)
+        self._connectionStateHandler(False)
+        ReconnectingClientFactory.clientConnectionLost(self, connector, reason)
+        
+        
+    def clientConnectionFailed(self, connector, reason):
+        logging.error('PAWS connection failed. Reason: %s' % reason)
+        self._connectionStateHandler(False)
+        ReconnectingClientFactory.clientConnectionFailed(self, connector, reason)
+
+
+    def send(self, data):
+        """
+        Send a string of data to the PAWS service through the single connection.
+        This is a convenience wrapper around the protocol.
+        """
+        self.connection.send(data)
+
+
+
+
+class PAWSClient(object):
+    """ 
+    A Pachube Advanced Web-scale Socket-server (PAWS) client.
+    
+    This class does everything the normal client does and more.
+    
+    The main feature of this class is its ability to subscribe to
+    resource paths (e.g. feeds, datastreams) and get notified of
+    updates when they occur.
+    """
+    
+    def __init__(self, api_key=None, feed_id=None):
+        """
+        @param api_key: The api key, with appropriate authorization privileges to use.
+        @type api_key: string
+        @param feed_id: The default feed identifier to use
+        @type feed_id: string
+        """
+        self.api_key = api_key
+        self.feed_id = feed_id
+
+        # Store the response callback processing chains associated with each request.
+        # Responses can be associated to the originating requests through the token.
+        # the token forms the key in this dict.
+        self.pendingResponses = dict()
+        
+        # Subscriptions use the same token approach to map the message data to the 
+        # originating request. The values of each dict item is a tuple of the 
+        # callback handler function to pass the response data to and a txpachube
+        # data structure class that is used to decode the data upon its receipt.
+        self.subscriptionHandlers = dict()
+        
+        self.headers = {'X-PachubeApiKey': self.api_key}
+        
+        self.factory = PAWSProtocolFactory(self._messageHandler)
+    
+        
+    def connect(self):
+        """
+        Establish a connection to the Pachube PAWS service.
+        
+        @return: Returns a deferred that fires when the connection
+                 is completed. 
+        @rtype: defer.Deferred
+        """
+        return self.factory.connect()
+    
+
+    def disconnect(self):
+        """
+        Break a connection to the Pachube PAWS service
+        
+        @return: Returns a deferred that fires when the disconnection
+                 is completed.
+        @rtype: defer.Deferred
+        """
+        return self.factory.disconnect()
+    
+    
+    @property
+    def connected(self):
+        """
+        A convenience property to check the connection state.
+        
+        @return: The connection state of the PAWSClient
+        @rtype: boolean 
+        """
+        return self.factory.connected
+
+
+    def _messageHandler(self, msg):
+        """
+        Receive a message from the PAWS service. Use the token found in the response
+        to find the correct pending response deferred so the response processing
+        chain can process the message and return it to the caller.
+        """
+        logging.debug("PAWSClient has received a message:\n%s\n" % msg)
+        data = json.loads(msg)
+        token = data['token']
+
+        if token in self.pendingResponses:
+            self.pendingResponses[token].callback(data)
+            del self.pendingResponses[token]
+
+        elif token in self.subscriptionHandlers:
+            body = self._getResponseBody(data)
+            handler, dataStructureClass = self.subscriptionHandlers[token]
+            dataStructure = dataStructureClass(**body)
+            handler(dataStructure)            
+            
+        else:
+            logging.error("Unrecognised message with token %s not in pendingResponses or subscriptionHandlers" % token)
+            logging.error("pendingResponses tokens = %s" % str(self.pendingResponses.keys()))
+            logging.error("subscriptionHandlers tokens = %s" % str(self.subscriptionHandlers.keys()))
+            logging.error("No handler to process:\n%s\n" % json.dumps(data, sort_keys=True, indent=2))
+  
+  
+    def _generateToken(self):
+        """
+        Make a unique token that can be used to match requests with the response.
+        """
+        return str(uuid.uuid1())
+    
+
+    #
+    # Callbacks
+    #
+            
+                        
+    def _getResponseBody(self, response):
+        """
+        Most responses need to deliver the response body data. Some need
+        to return data from the header only. This method provides the 
+        ability to return only the response body data.
+        """
+        return response['body']
+    
+    
+    def _convertToPachubeStructure(self, data, kind):
+        """
+        Convert the data into a DataStructure object
+        """
+        dataStructureClass = txpachube.getDataStructure(kind)
+        dataStructure = dataStructureClass()
+        dataStructure.decode(data)
+        return dataStructure
+
+
+
+    def _getResponseCodeStatusFromHeader(self, response):
+        """
+        Most responses need to deliver the response body data. Some need
+        to return data from the header only. This method provides the 
+        ability to return a success/fail criteria based on the response
+        header code received.
+        """
+        responseCode = response['status']
+        success = responseCode == 200
+        if not success:
+            logging.error("Expected status response code 200, received %s" % (responseCode))
+        return success
+
+
+    def _getLocationFromHeader(self, response):
+        """
+        Extract and return the location of the created item 
+        from the 'Location' field in the response header.
+        """
+        json_data = json.loads(response)
+        if json_data['status'] == 201:
+            # created ok
+            if 'LOCATION' in json_data['headers']:
+                location = json_data['headers']["LOCATION"]
+                return location
+            else:
+                err_str = "No response header \'Location\' field found"
+                logging.error(err_str)
+                raise Exception(err_str)
+        else:
+            err_str = "Unexpected response => %s:%s" % (response.code, response.phrase)
+            logging.error(err_str)
+            raise Exception(err_str)
+        
+            
+    #
+    # 
+    #
+    
+
+    
+    def _sendRequest(self, method, resource, body=None, token=None):
+        """
+        Send a request to the url, where the method argument defines the kind of request.
+        Returns a deferred that returns a tuple containing the response header and the
+        response body.
+        
+        @param method: The kind of request to make. [get|put|post|delete]
+        @type method: string
+        @param resource: The resource used during the request
+        @type resource: string
+        @param headers: A dict of header key value pairs to be used in the request
+        @type headers: dict
+        @param body: THe content used for the request body data.
+        
+        @return:  A deferred that returns a result tuple containing the response,
+        and the response body.
+        @rtype: twisted.internet.defer.Deferred        
+        """
+
+        message = dict()
+        message['method'] = method
+        message['resource'] = resource
+        message['headers'] = self.headers
+        if body:
+            message['body'] = body
+        if token is None:
+            token = self._generateToken()
+        message['token'] = token
+        
+        logging.debug("About to send:\n%s\n" % json.dumps(message, sort_keys=True, indent=2))
+        
+        if self.connected:
+            self.factory.send(json.dumps(message))
+            d = defer.Deferred()
+            self.pendingResponses[token] = d
+            return d
+        else:
+            logging.error("Send failed, no connection exists")
+
+
+    def _get(self, resource, headers):
+        """ 
+        Perform a get at the specified url 
+        
+        @param resource: The resource used during the request
+        @type resource: string
+
+        @return:  A deferred that returns a result tuple containing the response,
+        and the response body.
+        @rtype: twisted.internet.defer.Deferred
+        """
+        return self._sendRequest("get", resource, None)
+        
+        
+    def _put(self, resource, headers, data):
+        """ 
+        Perform a put at the specified resource 
+        
+        @param resource: The resource used during the request
+        @type resource: string
+        @param body: The content that forms the body of the request.
+        @type body: string
+
+        @return:  A deferred that returns a result tuple containing the response,
+        and the response body.
+        @rtype: twisted.internet.defer.Deferred
+        """
+        return self._sendRequest("put", resource, body)
+    
+    
+    def _post(self, resource, headers, data):
+        """ 
+        Perform a post at the specified resource 
+        
+        @param resource: The resource used during the request
+        @type resource: string
+        @param body: The content that forms the body of the request.
+        @type body: string
+
+        @return:  A deferred that returns a result tuple containing the response,
+        and the response body.
+        @rtype: twisted.internet.defer.Deferred
+        """
+        return self._sendRequest("post", resource, body)       
+    
+    
+    def _delete(self, resource, headers):
+        """ 
+        Perform a delete at the specified url
+        
+        @param resource: The resource used during the request
+        @type resource: string
+
+        @return:  A deferred that returns a result tuple containing the response,
+        and the response body.
+        @rtype: twisted.internet.defer.Deferred
+        """
+        return self._sendRequest("delete", resource, None)        
+        
+        
+    def _subscribe(self, resource):
+        """ 
+        Perform a subscribe at the specified url
+        
+        @param resource: The resource used during the request
+        @type resource: string
+
+        @return: A tuple contains the token used for subscription and
+                 a deferred that returns a result of the subscribe
+                 response. The token is needed later to unsubscribe.
+        @rtype: string
+        """
+        token = self._generateToken()
+        d = self._sendRequest("subscribe", resource, None, token)
+        # _sendRequest returns a deferred allowing the caller to chain
+        # up processing actions to be called when the resposne arrives.
+        # By default _sendRequest add this deferred to a pendingResponses 
+        # dict using the message token as the dict key. As responses are
+        # processed, the normal action is to remove the token from the dict
+        # as they are only used by the req/reply pair.
+        # Subscription responses use the same token forever. This means 
+        # we can't simply remove the matching token item from the dict and
+        # continue to be able to process the messages.
+        # So a separate dict is used to store the token and associated
+        # callback handlers for subscrription messages.
+        # However, by default we still end up with an entry in the 
+        # pendingResponses dict. Conveniently each subscribe/unsubscribe 
+        # request is responded to with an acknomlwedge response. Processing
+        # this message results in the identical token in the pendingResponses
+        # being removed. All good.
+        return (token, d)
+    
+
+    def _unsubscribe(self, resource, token):
+        """ 
+        Perform a subscribe at the specified url
+        
+        @param resource: The resource used during the request
+        @type resource: string
+        @param token: : The token generated from the initial subscription.
+        @type token: string        
+
+        @return: A deferred that returns a result of the subscribe
+                 response.
+        @rtype: string
+        """
+        return self._sendRequest("unsubscribe", resource, None, token)
+
+        
+    #
+    # Environments (Feeds)
+    #
+    
+    
+    def list_feeds(self, parameters=None):
+        """ 
+        Returns a paged list of Pachube's feeds that are viewable by 
+        the authenticated account with a default page size of 50 feeds.
+        
+        @param parameters: Additional parameters to configure the search query.
+        @type parameters: dict
+        
+        @return: A deferred that returns the response body which is a paged
+                 list of feeds (default 50 per page) viewable by the api_key 
+                 provided.
+        @rtype: string (in the format specified by the format argument)
+        
+        
+        Available settings for parameters:
+        
+        page
+            Integer indicating which page of results you are requesting. Starts from 1.
+            http://api.pachube.com/v2/feeds?page=2
+        
+        per_page
+            Integer defining how many results to return per page (1 to 1000).
+            http://api.pachube.com/v2/feeds?per_page=5
+        
+        content
+            String parameter ('full' or 'summary') describing whether we 
+            want full or summary results. Full results means all datastream
+            values are returned, summary just returns the environment meta 
+            data for each feed.
+            http://api.pachube.com/v2/feeds?content=summary
+        
+        q
+            Full text search parameter. Should return any feeds matching this string.
+            http://api.pachube.com/v2/feeds?q=arduino
+        
+        tag
+            Returns feeds containing datastreams tagged with the search query.
+            http://api.pachube.com/v2/feeds?tag=temperature
+        
+        user
+            Returns feeds created by the user specified.
+            http://api.pachube.com/v2/feeds.xml?user=pachube
+        
+        units
+            Returns feeds containing datastreams with units specified by the 
+            search query.
+            http://api.pachube.com/v2/feeds.xml?units=celsius
+        
+        status
+            Possible values ('live', 'frozen', or 'all'). Whether to search 
+            for only live feeds, only frozen feeds, or all feeds. Defaults to all.
+            http://api.pachube.com/v2/feeds.xml?status=frozen
+        
+        order
+            Order of returned feeds. Possible values ('created_at', 'retrieved_at',
+            or 'relevance').
+            http://api.pachube.com/v2/feeds.xml?order=created_at
+        
+        show_user
+            Include user login and user level for each feed. 
+            Possible values: true, false (default).
+            http://api.pachube.com/v2/feeds.xml?show_user=true
+        
+        
+        The following additional advanced parameters are more intensive 
+        queries that are restricted to particular account types:
+        
+        lat    
+            Used to find feeds located around this latitude. 
+            Used if ids/_datastreams_ are not specified.
+            lat=51.5235375648154
+        
+        lon
+            Used to find feeds located around this longitude. 
+            Used if ids/_datastreams_ are not specified.
+            lon=-0.0807666778564453
+        
+        distance
+            search radius
+            distance=5.0
+        
+        distance_units
+            miles or kms (default).
+            distance_units=miles        
+
+        If api_key argument is not set when calling this method then the
+        value set during this object's instantiation (ie. in __init__) is used.        
+        """
+        d = self._get("/feeds", parameters)
+        d.addCallback(self._getResponseBody)
+        d.addCallback(self._convertToPachubeStructure, txpachube.List_Feeds_Msg)
+        return d
+    
+
+    def create_feed(self, data=None):
+        """ 
+        Creates a new feed.
+        
+        @param data: A string detailing the environment to be created.
+        @type data: string
+        
+        @return: A deferred that returns the feed_id of the newly created feed. 
+        @rtype: string
+
+        """
+        
+        def getFeedIdFromLocation(location):
+            """
+            Extract and return the new feed id from the 'Location' field in the response header.
+            """
+            feed_id = location.split("/")[-1]
+            return feed_id
+
+
+        d = self._post('/feeds', data)
+        d.addCallback(self._getLocationFromHeader)
+        d.addCallback(getFeedIdFromLocation)
+        return d
+    
+    
+    def read_feed(self, feed_id, parameters=None):
+        """ 
+        Returns the most recent datastreams for environment [feed_id], viewable by the api_key provided
+        
+        @param feed_id: The feed identifier
+        @type feed_id: string
+        @param parameters: Additional parameters to configure the search query.
+        @type parameters: dict
+        
+        @return: A deferred that returns a txpachube.Environment object populated
+                 from the body of the response.
+        @rtype: txpachube.Environment
+        
+        
+        Available settings for parameters:
+        datastream
+            Filter the returned datastreams. Comma separated datastream IDs.
+            http://api.pachube.com/v2/feeds/123.json?datastreams=energy,power
+
+        show_user
+            Include user login and user level for each feed. 
+            Possible values: true, false (default).
+            http://api.pachube.com/v2/feeds/123.xml?show_user=true (json/xml only)        
+
+
+        Available settings for parameters supporting historical queries:  
+        start: 
+            Defines the starting point of the query as a timestamp, 
+            e.g. 2010-05-20T11:01:46Z. The default value is blank.
+
+        end: 
+        Defines the end point of the data returned as a timestamp, 
+        e.g. 2010-05-21T11:01:46Z. The default value is set to the current timestamp.
+
+        duration:
+            Specifies the duration of the query.
+            If used in conjunction with end it will request the data prior to the end date.
+            If used in conjunction with start it will request the data after the start date.
+            If used by itself it will give the most recent data for the duration specified.
+            It is incorrect to specify start, end and duration
+
+            The format is <number><time unit> e.g. 10minutes, 6hours
+
+            The valid time units are:
+            seconds
+            minute(s)
+            hour(s)
+            day(s)
+            week(s)
+            month(s)
+            year(s)
+
+        page: 
+            Defines which page we are looking at of the matching results. 
+            If not set, the default value is 1
+
+        per_page: 
+            Defines how many results are returned per page. 
+            If not set this value defaults to 100. Maximum value is 1000
+
+        time: 
+            Returns the feed with the values as they were at the specified timestamp. 
+            There are a few points to note about this functionality:
+                Only the values of the datastream and their timestamps are changed, 
+                all other metadata reflects the current state of the feed and its datastreams
+                If a datastream had no values at the time specified (either because it didn't
+                exist or because it hadn't been updated) it will be excluded from the output
+        
+        find_previous:
+            Will also return the previous value to the date range being requested. 
+            Note that this is useful for any graphing because if you want to draw a graph of 
+            the date range you specified you would end up with a small gap until the first value.
+
+        interval_type:
+            If set to "discrete" the data will be returned in fixed time interval format 
+            according to the inverval value supplied. If this is not set, the raw datapoints
+            will be returned.
+
+        interval: 
+            Determines what interval of data is requested and is defined in seconds between
+            the datapoints. If a value is passed in which does not match one of these values, 
+            it is rounded up to the next value. 
+            The acceptable values are currently:
+                Value    Description                     Maximum range in one query
+                0        Every snapshot stored            6 hours
+                30       30 second interval data          12 hours
+                60       One snapshot every minute        24 hours
+                300      One snapshot every 5 minutes     5 days
+                900      One snapshot every 15 minutes    14 days
+                3600     One snapshot per hour            31 days
+                10800    One snapshot per three hours     90 days
+                21600    One snapshot per six hours       180 days
+                43200    One snapshot per twelve hours    1 year
+                86400    One snapshot per day             1 year
+                
+        If api_key or feed_id arguments are not set when calling this method then the
+        values set during this object's instantiation (ie. in __init__) are used.
+        """
+        resource = '/feeds/%s' % feed_id
+        d = self._get(resource, parameters)
+        d.addCallback(self._getResponseBody)
+        d.addCallback(self._convertToPachubeStructure, format, txpachube.View_Feed_Msg)
+        return d    
+    
+
+    def subscribe(self, resource, subscriptionHandler):
+        """
+        Subscribe to the resource for updates of changes.
+        
+        @param resource: The resource to access
+        @type resource: string
+        @param subscriptionHandler: A callable that will receive the data structure
+                                   returned periodically as a result of the subscription.
+        @type subscriptionHandler: callable
+        
+        @return: A tuple containing the token used for subscription and a deferred 
+                that returns the state of the subscription request. The token is 
+                needed to unsubscribe later.
+        @rtype: string
+        """
+        # determine the expected response object kind based on
+        # the resource being subscribed to.
+        if 'datastreams' in resource:
+            dataStructureClass = txpachube.Datastream
+        else:
+            dataStructureClass = txpachube.Environment
+        
+        token, d = self._subscribe(resource)
+        d.addCallback(self._getResponseCodeStatusFromHeader)
+        self.subscriptionHandlers[token] = (subscriptionHandler, dataStructureClass)
+        return token, d
+        
+    
+    
+    def unsubscribe(self, resource, token):
+        """
+        Unsubscribe from receiving update from the specified resource.
+        
+        @param resource: The resource to access
+        @type resource: string
+        @param token: : The token generated from the initial subscription.
+        @type token: string
+                
+        @return: A deferred that returns the state of the unsubscription request 
+        @rtype: boolean
+        """
+        if token in self.subscriptionHandlers:
+            del self.subscriptionHandlers[token]
+            
+        d = self._unsubscribe(resource, token)
+        d.addCallback(self._getResponseCodeStatusFromHeader)
+        return d
+    
+    

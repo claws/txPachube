@@ -10,7 +10,7 @@ List all feeds visible to supplied key:
 $ list_feeds.py --keyfile=/path/to/apikey/file
 
 List a particular feed
-$ list_feeds.py --keyfile=path/to/apikey/file --feed=42745
+$ list_feeds.py --keyfile=path/to/apikey/file --feed=XXX
 """
 
 import sys
@@ -85,7 +85,7 @@ if options.feed_id:
     
 else:
     # request feed details for all feeds visible to the key supplied
-    d = client.list_feeds(api_key=key)
+    d = client.subscribe()
 
 
 d.addCallback(cbSuccess)

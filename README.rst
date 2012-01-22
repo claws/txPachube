@@ -43,10 +43,15 @@ using these txpachube data structure objects like this::
     environment = txpachube.Environment(**env_kwargs)
     json_feed_data = environment.encode()
     
-Or in a more compact form once you are familiar a data strcture's valid DataField items::
+Or in a more compact form once you are familiar with a data strcture's valid DataField items::
     
     environment = txpachube.Environment(title="A Temporary Test Feed", version="1.0.0")
     json_feed_data = environment.encode()
+    
+txpachube also implements a client that connects to the beta PAWS service. This allows long
+running, persistent, connections to be made to the Pachube service. This type of client is
+useful for applications which require realtime updates on change of status. Such realtime
+updates are available through the subscription feature exposed in the beta PAWS service.
 
 
 
@@ -93,6 +98,9 @@ List Pachube feeds visible to the API key supplied::
     # supplied API key. It initialises the Client object with a
     # default API key that will be used if no api_key argument is
     # passed to the various API methods.
+    # Parameters can be passed to customise the default results.
+    # In this case only 'live' feeds and 'summary' content is
+    # being requested.
 
     from twisted.internet import reactor
     import txpachube
@@ -105,7 +113,8 @@ List Pachube feeds visible to the API key supplied::
 
         pachubeClient = txpachube.client.Client(api_key=API_KEY)
 
-        d = pachubeClient.list_feeds()
+        parameters = {'status' : 'live', 'content' : 'summary'}
+        d = pachubeClient.list_feeds(parameters=parameters)
         d.addCallback(lambda environment_list: print "Received feed list content:\n%s\n" % environment_list)
         d.addErrback(lambda reason: print "Error listing visible feeds: %s" % str(reason))
         d.addCallback(reactor.stop)
@@ -262,7 +271,77 @@ Delete a feed::
         reactor.run()
 
 
-Example use case::
+Use the beta PAWS API to subscribe to a feed or datastream and receive updates
+whenever the feed/datastream value changes::
+
+	#!/usr/bin/env python 
+	
+	from twisted.internet import reactor
+	import txpachube
+	
+    # Paste your Pachube API key here
+    API_KEY = ""
+
+    # Paste the feed identifier you wish to monitor here
+    FEED_ID = ""
+    
+    # Paste a datastream identifier from the feed here if you only want to 
+    # monitor a particular datastream instead of the whole feed.
+    DATASTREAM_ID = ""
+     
+    #
+    # Set up callback handlers
+    #
+
+    def updateHandler(dataStructure):
+        """
+        Handle a txpachube data structure object generated as a result of a
+        subscription update message received from Pachube.
+
+        The data structure returned will vary depending on the resource subscribed to.
+        If a datastream is specified the returned data structure will be a txpachube.Datastream
+        object. If just a feed is specified then the returned data structure will be a
+        txpachube.Environment object.
+        """
+        print "Subscription update message received:\n%s\n" % str(dataStructure)
+
+
+    def do_subscribe(connected, client, resource):
+        """ Subscribe to the specified resource if the connection is established """
+
+        if connected:
+            print "Connected to PAWS service"
+            
+            def handleSubscribeResponse(status):
+                print "Subscribe response status: %s" % status
+
+			print "Subscribing for updates to: %s" % resource
+            token, d = client.subscribe(resource, updateHandler)
+            print "Subscription token is: %s" % token
+            d.addCallback(handleSubscribeResponse)
+
+        else:
+            print "Connection failed"
+            reactor.callLater(0.1, reactor.stop)
+            return
+
+
+    if __name__ == '__main__':
+
+        if DATASTREAM_ID:
+            resource = "/feeds/%s/datastreams/%s" % (FEED_ID, DATASTREAM_ID)
+        else:
+            resource = "/feeds/%s" % (FEED_ID)
+        
+        client = txpachube.client.PAWSClient(api_key=API_KEY)
+        d = client.connect()
+        d.addCallback(do_subscribe, client, resource)
+        reactor.run()        
+        
+        
+        
+
+Example use case scenario::
 
     #!/usr/bin/env python
     
@@ -273,19 +352,38 @@ Example use case::
     # with current value data. All the implemented data structures
     # support encoding to JSON (default) and XML (EEML).
     #
-    # In this example the CurrentCost sensor object is only for demonstration
-    # purposes which means that this is not a self contained runnable
-    # script. However, you could implement the CurrentCost object to make 
-    # it work.
+    # In this example the CurrentCost sensor object is derived from the
+    # separate txcurrentcost package. If you want to run this script
+    # you would need to obtain that package.
+    #
     
     from twisted.internet import reactor
     import txpachube
+    import txcurrentcost.monitor
 
     # Paste your Pachube API key here
     API_KEY = ""
 
     # Paste the feed identifier you wish to be DELETED here
     FEED_ID = ""
+
+    CurrentCostMonitorConfigFile = "/path/to/your/config/file"
+
+    
+    class MyCurrentCostMonitor(txcurrentcost.monitor.Monitor):
+        """
+        Extends the txcurrentCost.monitor.Monitor by implementing periodic update
+        handler to call a supplied data handler.
+        """
+ 
+        def __init__(self, config_file, periodicUpdateDataHandler):
+            super(MyCurrentCostMonitor, self).__init__(config_file)
+            self.periodicUpdateDataHandler = periodicUpdateDataHandler
+
+        def periodicUpdateReceived(self, timestamp, temperature, sensor_type, sensor_instance, sensor_data):
+            if sensor_type == txcurrentcost.Sensors.ElectricitySensor:
+                if sensor_instance == txcurrentcost.Sensors.WholeHouseSensorId:
+                    self.periodicUpdateDataHandler(timestamp, temperature, sensor_data)
 
 	
     class Monitor(object):
@@ -294,52 +392,32 @@ Example use case::
             self.temperature_datastream_id = "temperature"
             self.energy_datastream_id = "energy"
             self.pachube = txpachube.client.Client(api_key=API_KEY, feed_id=FEED_ID)
-            self.sensor = CurrentCost()
-            self.sensor.setRealtimeMsgHandler(self.handleDataUpdate)
+            currentCostMonitorConfig = txcurrentcost.monitor.MonitorConfig(CurrentCostMonitorConfigFile)
+            self.sensor = txcurrentcost.monior.Monitor(currentCostMonitorConfig,
+                                                       self.handleCurrentCostPeriodicUpdateData)
             
         def start(self):
             """ Start sensor """
-            self.sensor.connect()
+            self.sensor.start()
             
         def stop(self):
             """ Stop the sensor """
             self.sensor.stop()
             
-        def handleDataUpdate(self, data):
-            """ Receive sensor data """
-            datastreams_data = []
-            if data.temperature:
-                datastream_data = (self.temperature_datastream_id, data.temperature)
-                datastreams_data.append(datastream_data)
-            if data.energy:
-                datastream_data = (self.energy_datastream_id, data.energy)
-                datastreams_data.append(datastream_data)
-            
-            if datastreams_data:
-                self.updatePachube(datastreams_data)
+        def def handleCurrentCostPeriodicUpdateData(self, timestamp, temperature, watts_on_channels):
+            """ Handle latest sensor periodic update """
 
-        def updatePachube(self, datastreams_data)
-            """ Update the Pachube service with latest value(s) """
-            
-            # Populate a txpachube.Environment object which supports
-            # encoding to JSON (default) and XML (EEML).
+            # Populate a txpachube.Environment data structure object with latest data
+
             environment = txpachube.Environment(version="1.0.0")
+            environment.setCurrentValue(self.temperature_datastream_id, "%.1f" % temperature)
+            environment.setCurrentValue(self.energy_datastream_id, str(watts_on_channels[0]))
 
-            for datastream_data in datastreams_data:
-                datastream_id, current_value = datastream_data
-                environment.setCurrentValue(datastream_id, current_value)
-                
+            # Update the Pachube service with latest value(s)
+
             d = self.pachube.update_feed(data=environment.encode())
-            d.addCallback(self._cbPachubeUpdateSuccess)
-            d.addErrback(self._cbPachubeUpdateFailed)
-        
-
-        def _cbPachubeUpdateSuccess(self, result):
-            print "Pachube updated"
-        
-
-        def _cbPachubeUpdateFailed(self, reason):
-            print "Pachube update failed: %s" % str(reason)           
+            d.addCallback(lambda result: print "Pachube updated")
+            d.addErrback(lambda reason: print "Pachube update failed: %s" % str(reason))
 
 
     if __name__ == "__main__":
@@ -354,5 +432,7 @@ Todo
 
 * Add test cases
 * Investigate alternative installers that support uninstall/update options.
+* Complete implementation of PAWS client. Currently it only supports subscribe/unsubscribe
+  but it should implement everything the standard client supports.
 
 
