@@ -167,9 +167,8 @@ class DataStructure(object):
     the Pachube API and the txpachube client. These structures are designed in
     such a way that they can be used for JSON or XML (EEML).
     """
-    
 
-            
+
     def toDict(self):
         """ 
         Return the data structure object as a dict. This method is used as 
@@ -250,7 +249,11 @@ class DataStructure(object):
 
               
     def __str__(self):
-        """ Return a string representation of this datapoint """
+        """
+        Return a string representation of this datapoint
+        The JSON format is fairly clear so lets just return
+        a pretty printed version of that.
+        """
         return json.dumps(self.toDict(), sort_keys=True, indent=2)
         
 
@@ -1060,7 +1063,10 @@ class Environment(DataStructure):
 
 
 class EnvironmentList(DataStructure):
-    """ Models a Pachube Environment (feed) list object """
+    """
+    Models a Pachube Environment (feed) list object - this object is returned
+    from client list_feeds method.
+    """
     
     def __init__(self, **kwargs):
         

@@ -1,18 +1,54 @@
-txPachube
+txpachube
 =========
 
-txPachube is a Python wrapper for the v2 Pachube `API <http://api.pachube.com/v2/>`_, based on the Twisted networking framework.
-Use txPachube to integrate non blocking access to the Pachube API into your Python Twisted application.
+.. contents::
 
-It implements the full Pachube API (Feeds, Datastreams, Datapoints, Triggers, Users, Keys) and many 
+**txpachube is currently under development**
+
+Introduction
+------------
+
+txpachube is a Python wrapper for the v2 Pachube `API <http://api.pachube.com/v2/>`_, based on the Twisted networking framework.
+Use txpachube to integrate non blocking access to the Pachube API into your Python Twisted application.
+
+
+Details
+-------
+
+txpachube implements the full v2 Pachube API (Feeds, Datastreams, Datapoints, Triggers, Users, Keys) and many 
 of the data structures (Unit, Location, Datapoint, Datastream, Environment, EnvironmentList, Trigger,
 TriggerList Key, KeyList, User, UserList) contained in requests and responses.
 
 The data structures support encoding and decoding from JSON/XML formats. These structures are useful
 when building data to send to Pachube and also for processing Pachube data returned from queries.
 
+The txpachube client methods take a data string argument that will be used as the body of the
+message sent to Pachube. How you generate this body data is up to you. You might choose to
+manually create the data something like this::
 
-**txPachube is currently under development**
+    # manually create feed data message body content 
+    feed_data = {"title" : "A Temporary Test Feed",
+                 "version" : "1.0.0"}
+    json_feed_data = json.dumps(feed_data)
+
+The txpachube package implements many of the data structures used in Pachube requests and
+response as Python objects. So the JSON formatted feed data above could also be generated
+using these txpachube data structure objects like this::
+
+    # Define a dict of valid data structure keywords for use as
+    # key word arguments to the data structure initialiser.
+    #
+    env_kwargs = {txpachube.DataFields.Title : "A Temporary Test Feed",
+                  txpachube.DataFields.Version : "1.0.0"}
+    environment = txpachube.Environment(**env_kwargs)
+    json_feed_data = environment.encode()
+    
+Or in a more compact form once you are familiar a data strcture's valid DataField items::
+    
+    environment = txpachube.Environment(title="A Temporary Test Feed", version="1.0.0")
+    json_feed_data = environment.encode()
+
+
 
 Software Dependencies
 ---------------------
@@ -25,27 +61,27 @@ Software Dependencies
 
 
 Install
-=======
+-------
 
-1. Download txPachube archive::
+1. Download txpachube archive::
 
     $ git clone git://github.com/claws/txPachube.git
     
-For other download options (zip, tarball) visit the github web page of `txPachube <https://github.com/claws/txPachube>_`
+For other download options (zip, tarball) visit the github web page of `txpachube <https://github.com/claws/txPachube>`_
 
-2. Install txPachube module into your Python distribution::
+2. Install txpachube module into your Python distribution::
   
     sudo python setup.py install
     
 3. Test::
 
     $ python
-    >>> import txPachube
+    >>> import txpachube
     >>>
 
 
 Examples
-========
+--------
 
 These examples require you to have a Pachube account and an appropriately configured
 (permissions set to create, update, read, delete) Pachube API key is required. 
@@ -59,7 +95,7 @@ List Pachube feeds visible to the API key supplied::
     # passed to the various API methods.
 
     from twisted.internet import reactor
-    import txPachube
+    import txpachube
 
     # Paste your Pachube API key here
     API_KEY = ""
@@ -67,7 +103,7 @@ List Pachube feeds visible to the API key supplied::
 
     if __name__ == "__main__":
 
-        pachubeClient = txPachube.client.Client(api_key=API_KEY)
+        pachubeClient = txpachube.client.Client(api_key=API_KEY)
 
         d = pachubeClient.list_feeds()
         d.addCallback(lambda environment_list: print "Received feed list content:\n%s\n" % environment_list)
@@ -87,22 +123,20 @@ Create a new feed::
     # used.
  
     from twisted.internet import reactor
-    import txPachube
+    import txpachube
     import json
 
     # Paste your Pachube API key here
     API_KEY = ""
 
-    # example create feed data
-    feed_data = {"title" : "A Temporary Test Feed",
-                 "version" : "1.0.0"}
-    
-    json_feed_data = json.dumps(feed_data)
+    environment = txpachube.Environment(title="A Temporary Test Feed", 
+                                        version="1.0.0")
+    json_feed_data = environment.encode()
 
 
     if __name__ == "__main__":
 
-        pachubeClient = txPachube.client.Client()
+        pachubeClient = txpachube.client.Client()
 
         d = pachubeClient.create_feed(api_key=API_KEY, data=json_feed_data)
         d.addCallback(lambda new_feed_id: print "Feed created. New feed id is: %s" % new_feed_id)
@@ -123,7 +157,7 @@ Update a feed::
     # example is using XML.
  
     from twisted.internet import reactor
-    import txPachube
+    import txpachube
 
     # Paste your Pachube API key here
     API_KEY = ""
@@ -159,9 +193,9 @@ Update a feed::
 
     if __name__ == "__main__":
 
-        pachubeClient = txPachube.client.Client(api_key=API_KEY, feed_id=FEED_ID)
+        pachubeClient = txpachube.client.Client(api_key=API_KEY, feed_id=FEED_ID)
 
-        d = pachubeClient.update_feed(format=txPachube.DataFormats.XML, data=feed_data)
+        d = pachubeClient.update_feed(format=txpachube.DataFormats.XML, data=feed_data)
         d.addCallback(lambda result: print "Feed updated successfully:\n%s\n" % result)
         d.addErrback(lambda reason: print "Error updating feed: %s" % str(reason))
         d.addCallback(reactor.stop)
@@ -179,7 +213,7 @@ Read a feed::
     # method.
 
     from twisted.internet import reactor
-    import txPachube
+    import txpachube
 
     # Paste your Pachube API key here
     API_KEY = ""
@@ -190,9 +224,9 @@ Read a feed::
 
     if __name__ == "__main__":
         
-        pachubeClient = txPachube.client.Client(api_key=API_KEY, feed_id=FEED_ID)
+        pachubeClient = txpachube.client.Client(api_key=API_KEY, feed_id=FEED_ID)
 
-        d = pachubeClient.read_feed(parameters={txPachube.DataFields.Datastreams : 'temperature'})
+        d = pachubeClient.read_feed(parameters={txpachube.DataFields.Datastreams : 'temperature'})
         d.addCallback(lambda environment: print "Received feed content:\n%s\n" % environment)
         d.addErrback(lambda reason: print "Error retrieving feed data: %s" % str(reason))
         d.addCallback(reactor.stop)
@@ -207,7 +241,7 @@ Delete a feed::
     # WARNING: This will REALLY delete the feed identifier listed. Make sure it is only a test feed. 
  
     from twisted.internet import reactor
-    import txPachube
+    import txpachube
 
     # Paste your Pachube API key here
     API_KEY = ""
@@ -218,7 +252,7 @@ Delete a feed::
 
     if __name__ == "__main__":
 
-        pachubeClient = txPachube.client.Client(api_key=API_KEY)
+        pachubeClient = txpachube.client.Client(api_key=API_KEY)
 
         d = pachubeClient.delete_feed(feed_id=FEED_ID)
         d.addCallback(lambda result: print "Feed was deleted: %s" % result)
@@ -232,10 +266,10 @@ Example use case::
 
     #!/usr/bin/env python
     
-    # This example demonstrates how you could use the txPachube module to
+    # This example demonstrates how you could use the txpachube module to
     # help upload sensor data (in this scenario a CurrentCost device) to
     # Pachube.
-    # A txPachube.Environment data structure is generated and populated
+    # A txpachube.Environment data structure is generated and populated
     # with current value data. All the implemented data structures
     # support encoding to JSON (default) and XML (EEML).
     #
@@ -245,7 +279,7 @@ Example use case::
     # it work.
     
     from twisted.internet import reactor
-    import txPachube
+    import txpachube
 
     # Paste your Pachube API key here
     API_KEY = ""
@@ -259,7 +293,7 @@ Example use case::
         def __init__(self, config):
             self.temperature_datastream_id = "temperature"
             self.energy_datastream_id = "energy"
-            self.pachube = txPachube.client.Client(api_key=API_KEY, feed_id=FEED_ID)
+            self.pachube = txpachube.client.Client(api_key=API_KEY, feed_id=FEED_ID)
             self.sensor = CurrentCost()
             self.sensor.setRealtimeMsgHandler(self.handleDataUpdate)
             
@@ -287,10 +321,10 @@ Example use case::
         def updatePachube(self, datastreams_data)
             """ Update the Pachube service with latest value(s) """
             
-            # Populate a txPachube.Environment object which supports
+            # Populate a txpachube.Environment object which supports
             # encoding to JSON (default) and XML (EEML).
-            env_kwargs = {txPachube.DataFields.Version : "1.0.0"}
-            environment = txPachube.Environment(**env_kwargs)
+            environment = txpachube.Environment(version="1.0.0")
+
             for datastream_data in datastreams_data:
                 datastream_id, current_value = datastream_data
                 environment.setCurrentValue(datastream_id, current_value)
@@ -316,7 +350,7 @@ Example use case::
         
         
 Todo
-====
+----
 
 * Add test cases
 * Investigate alternative installers that support uninstall/update options.

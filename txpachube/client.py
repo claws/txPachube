@@ -89,8 +89,6 @@ class Client(object):
     
     api_url = "api.pachube.com/v2"
     
-
-    
     
     def __init__(self, api_key=None, feed_id=None, use_http=False, timezone=None):
         """
@@ -131,16 +129,6 @@ class Client(object):
         self.headers = {'User-Agent': 'txpachube Client',
                         'Content-Type' : 'application/x-www-form-urlencoded'}    
         
-#        self.environment = None
-#        if self.api_key and self.feed_id:
-#            # Retrieve environment settings from Pachube if both an API key
-#            # and a feed id were passed to the client initialiser.
-#            def populateEnvironment(environment):
-#                """ """
-#                self.environment = environment
-#            d = self.read_feed()
-#            d.addCallback(populateEnvironment)
-            
             
     #
     # Callbacks
@@ -192,13 +180,6 @@ class Client(object):
         """
         response, body = result
         return body
-
-
-#    def _convertJsonToDict(self, body):
-#        """
-#        Return the JSON format response body data as a dict.
-#        """
-#        return json.loads(body)
     
     
     def _convertToPachubeStructure(self, data, format, kind):
@@ -206,7 +187,7 @@ class Client(object):
         Convert the data into a DataStructure object
         """
         dataStructureClass = txpachube.getDataStructure(kind)
-        dataStructure = dataStructureClass
+        dataStructure = dataStructureClass()
         dataStructure.decode(data, format)
         return dataStructure
 
