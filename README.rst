@@ -273,19 +273,38 @@ Example use case::
     # with current value data. All the implemented data structures
     # support encoding to JSON (default) and XML (EEML).
     #
-    # In this example the CurrentCost sensor object is only for demonstration
-    # purposes which means that this is not a self contained runnable
-    # script. However, you could implement the CurrentCost object to make 
-    # it work.
+    # In this example the CurrentCost sensor object is derived from the
+    # separate txcurrentcost package. If you want to run this script
+    # you would need to obtain that package.
+    #
     
     from twisted.internet import reactor
     import txpachube
+    import txcurrentcost.monitor
 
     # Paste your Pachube API key here
     API_KEY = ""
 
     # Paste the feed identifier you wish to be DELETED here
     FEED_ID = ""
+
+    CurrentCostMonitorConfigFile = "/path/to/your/config/file"
+
+    
+    class MyCurrentCostMonitor(txcurrentcost.monitor.Monitor):
+        """
+        Extends the txcurrentCost.monitor.Monitor by implementing periodic update
+        handler to call a supplied data handler.
+        """
+ 
+        def __init__(self, config_file, periodicUpdateDataHandler):
+            super(MyCurrentCostMonitor, self).__init__(config_file)
+            self.periodicUpdateDataHandler = periodicUpdateDataHandler
+
+        def periodicUpdateReceived(self, timestamp, temperature, sensor_type, sensor_instance, sensor_data):
+            if sensor_type == txcurrentcost.Sensors.ElectricitySensor:
+                if sensor_instance == txcurrentcost.Sensors.WholeHouseSensorId:
+                    self.periodicUpdateDataHandler(timestamp, temperature, sensor_data)
 
 	
     class Monitor(object):
@@ -294,52 +313,32 @@ Example use case::
             self.temperature_datastream_id = "temperature"
             self.energy_datastream_id = "energy"
             self.pachube = txpachube.client.Client(api_key=API_KEY, feed_id=FEED_ID)
-            self.sensor = CurrentCost()
-            self.sensor.setRealtimeMsgHandler(self.handleDataUpdate)
+            currentCostMonitorConfig = txcurrentcost.monitor.MonitorConfig(CurrentCostMonitorConfigFile)
+            self.sensor = txcurrentcost.monior.Monitor(currentCostMonitorConfig,
+                                                       self.handleCurrentCostPeriodicUpdateData)
             
         def start(self):
             """ Start sensor """
-            self.sensor.connect()
+            self.sensor.start()
             
         def stop(self):
             """ Stop the sensor """
             self.sensor.stop()
             
-        def handleDataUpdate(self, data):
-            """ Receive sensor data """
-            datastreams_data = []
-            if data.temperature:
-                datastream_data = (self.temperature_datastream_id, data.temperature)
-                datastreams_data.append(datastream_data)
-            if data.energy:
-                datastream_data = (self.energy_datastream_id, data.energy)
-                datastreams_data.append(datastream_data)
-            
-            if datastreams_data:
-                self.updatePachube(datastreams_data)
+        def def handleCurrentCostPeriodicUpdateData(self, timestamp, temperature, watts_on_channels):
+            """ Handle latest sensor periodic update """
 
-        def updatePachube(self, datastreams_data)
-            """ Update the Pachube service with latest value(s) """
-            
-            # Populate a txpachube.Environment object which supports
-            # encoding to JSON (default) and XML (EEML).
+            # Populate a txpachube.Environment data structure object with latest data
+
             environment = txpachube.Environment(version="1.0.0")
+            environment.setCurrentValue(self.temperature_datastream_id, "%.1f" % temperature)
+            environment.setCurrentValue(self.energy_datastream_id, str(watts_on_channels[0]))
 
-            for datastream_data in datastreams_data:
-                datastream_id, current_value = datastream_data
-                environment.setCurrentValue(datastream_id, current_value)
-                
+            # Update the Pachube service with latest value(s)
+
             d = self.pachube.update_feed(data=environment.encode())
-            d.addCallback(self._cbPachubeUpdateSuccess)
-            d.addErrback(self._cbPachubeUpdateFailed)
-        
-
-        def _cbPachubeUpdateSuccess(self, result):
-            print "Pachube updated"
-        
-
-        def _cbPachubeUpdateFailed(self, reason):
-            print "Pachube update failed: %s" % str(reason)           
+            d.addCallback(lambda result: print "Pachube updated")
+            d.addErrback(lambda reason: print "Pachube update failed: %s" % str(reason))
 
 
     if __name__ == "__main__":
