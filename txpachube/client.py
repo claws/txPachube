@@ -858,7 +858,7 @@ class Client(object):
             
         headers = {'X-PachubeApiKey': api_key}
         
-        d = self._get(url, headers)
+        d = self._get(url, headers, )
         d.addCallback(self._getResponseBody)
         d.addCallback(self._convertToPachubeStructure, format, txpachube.View_Datastream_Msg)
         return d
@@ -1982,18 +1982,17 @@ class PAWSClient(object):
         Extract and return the location of the created item 
         from the 'Location' field in the response header.
         """
-        json_data = json.loads(response)
-        if json_data['status'] == 201:
+        if response['status'] == 201:
             # created ok
-            if 'LOCATION' in json_data['headers']:
-                location = json_data['headers']["LOCATION"]
+            if 'LOCATION' in response['headers']:
+                location = response['headers']["LOCATION"]
                 return location
             else:
                 err_str = "No response header \'Location\' field found"
                 logging.error(err_str)
                 raise Exception(err_str)
         else:
-            err_str = "Unexpected response => %s:%s" % (response.code, response.phrase)
+            err_str = "Unexpected response. Expected 201 but got => %s" % (response['status'])
             logging.error(err_str)
             raise Exception(err_str)
         
@@ -2004,7 +2003,7 @@ class PAWSClient(object):
     
 
     
-    def _sendRequest(self, method, resource, body=None, token=None):
+    def _sendRequest(self, method, resource, parameters=None, body=None, token=None):
         """
         Send a request to the url, where the method argument defines the kind of request.
         Returns a deferred that returns a tuple containing the response header and the
@@ -2027,6 +2026,8 @@ class PAWSClient(object):
         message['method'] = method
         message['resource'] = resource
         message['headers'] = self.headers
+        if parameters:
+            message['parameters'] = parameters
         if body:
             message['body'] = body
         if token is None:
@@ -2044,7 +2045,7 @@ class PAWSClient(object):
             logging.error("Send failed, no connection exists")
 
 
-    def _get(self, resource, headers):
+    def _get(self, resource, parameters=None):
         """ 
         Perform a get at the specified url 
         
@@ -2055,10 +2056,10 @@ class PAWSClient(object):
         and the response body.
         @rtype: twisted.internet.defer.Deferred
         """
-        return self._sendRequest("get", resource, None)
+        return self._sendRequest("get", resource)
         
         
-    def _put(self, resource, headers, data):
+    def _put(self, resource, data):
         """ 
         Perform a put at the specified resource 
         
@@ -2071,10 +2072,10 @@ class PAWSClient(object):
         and the response body.
         @rtype: twisted.internet.defer.Deferred
         """
-        return self._sendRequest("put", resource, body)
+        return self._sendRequest("put", resource, body=data)
     
     
-    def _post(self, resource, headers, data):
+    def _post(self, resource, data):
         """ 
         Perform a post at the specified resource 
         
@@ -2090,7 +2091,7 @@ class PAWSClient(object):
         return self._sendRequest("post", resource, body)       
     
     
-    def _delete(self, resource, headers):
+    def _delete(self, resource):
         """ 
         Perform a delete at the specified url
         
@@ -2101,7 +2102,7 @@ class PAWSClient(object):
         and the response body.
         @rtype: twisted.internet.defer.Deferred
         """
-        return self._sendRequest("delete", resource, None)        
+        return self._sendRequest("delete", resource)        
         
         
     def _subscribe(self, resource):
@@ -2117,7 +2118,7 @@ class PAWSClient(object):
         @rtype: string
         """
         token = self._generateToken()
-        d = self._sendRequest("subscribe", resource, None, token)
+        d = self._sendRequest("subscribe", resource, token=token)
         # _sendRequest returns a deferred allowing the caller to chain
         # up processing actions to be called when the resposne arrives.
         # By default _sendRequest add this deferred to a pendingResponses 
@@ -2150,7 +2151,7 @@ class PAWSClient(object):
                  response.
         @rtype: string
         """
-        return self._sendRequest("unsubscribe", resource, None, token)
+        return self._sendRequest("unsubscribe", resource, token=token)
 
         
     #
@@ -2242,9 +2243,7 @@ class PAWSClient(object):
         distance_units
             miles or kms (default).
             distance_units=miles        
-
-        If api_key argument is not set when calling this method then the
-        value set during this object's instantiation (ie. in __init__) is used.        
+        
         """
         d = self._get("/feeds", parameters)
         d.addCallback(self._getResponseBody)
@@ -2372,16 +2371,238 @@ class PAWSClient(object):
                 21600    One snapshot per six hours       180 days
                 43200    One snapshot per twelve hours    1 year
                 86400    One snapshot per day             1 year
-                
-        If api_key or feed_id arguments are not set when calling this method then the
-        values set during this object's instantiation (ie. in __init__) are used.
         """
         resource = '/feeds/%s' % feed_id
         d = self._get(resource, parameters)
         d.addCallback(self._getResponseBody)
-        d.addCallback(self._convertToPachubeStructure, format, txpachube.View_Feed_Msg)
+        d.addCallback(self._convertToPachubeStructure, txpachube.View_Feed_Msg)
         return d    
     
+    
+    def update_feed(self, feed_id, data=None):
+        """
+        Updates [environment ID]'s environment and datastreams. If successful, the 
+        current datastream values are stored and any changes in environment metadata
+        overwrite previous values. Pachube stores a server-side timestamp in the 
+        "updated" attribute and sets the feed to "live" if it wasn't before. 
+
+        @param feed_id: The feed identifier
+        @type feed_id: string
+        @param data: A representation of the feed in the appropriate format.
+        @type data: string
+        
+        @return: A deferred that returns the success of the update based on
+                 the response header data. 
+        @rtype: boolean                
+        """
+        resource = '/feeds/%s' % feed_id
+        d = self._put(resource, data)
+        d.addCallback(self._getResponseCodeStatusFromHeader)
+        return d
+
+
+    def delete_feed(self, feed_id):
+        """
+        The DELETE request does not require a format to be used. A request made to 
+        this URL will delete the object referred to by the ID. 
+        WARNING: This is final and cannot be undone.
+
+        @param feed_id: The feed identifier
+        @type feed_id: string
+        
+        @return: A deferred that returns the success of the delete based on
+                 the response header data. 
+        @rtype: boolean     
+        """
+        resource = '/feeds/%s' % feed_id
+        d = self._delete(resource)
+        d.addCallback(self._getResponseCodeStatusFromHeader)
+        return d
+
+
+    #
+    # Datastreams
+    #
+    
+    def create_datastream(self, feed_id, datastream_id, data=None):
+        """
+        Creates new datastream(s) in environment [feed ID]. The body of the request 
+        should contain a JSON, XML or CSV representation of the datastream to be created.
+        
+        @param feed_id: The feed identifier
+        @type feed_id: string
+        @param datastream_id: A datastream identifier
+        @type datastream_id: string
+        @param data: A representation of the datastream in the appropriate format.
+        @type data: string
+        
+        @return: A deferred that returns the location of the feed created.
+        @rtype: boolean
+        """
+        resource = '/feeds/%s/datastreams/%s' % (feed_id, datastream_id)
+        d = self._post(resource, data)
+        d.addCallback(self._getResponseCodeStatusFromHeader)
+        return d
+           
+        
+    def read_datastream(self, feed_id, datastream_id, parameters=None): 
+        """
+        Read the requested datastream.
+
+        @param feed_id: The feed identifier
+        @type feed_id: string
+        @param datastream_id: A datastream identifier
+        @type datastream_id: string
+        @param parameters: Additional parameters to configure the png output.
+        @type parameters: dict
+
+        @return: A deferred that returns the datastream which is the feed
+                 (environment) with on the requested datastream
+        @rtype: txpachube.Datastream
+            
+            
+        Available settings for parameters supporting historical queries:  
+        start: 
+            Defines the starting point of the query as a timestamp, 
+            e.g. 2010-05-20T11:01:46Z. The default value is blank.
+
+        end: 
+        Defines the end point of the data returned as a timestamp, 
+        e.g. 2010-05-21T11:01:46Z. The default value is set to the current timestamp.
+
+        duration:
+            Specifies the duration of the query.
+            If used in conjunction with end it will request the data prior to the end date.
+            If used in conjunction with start it will request the data after the start date.
+            If used by itself it will give the most recent data for the duration specified.
+            It is incorrect to specify start, end and duration
+
+            The format is <number><time unit> e.g. 10minutes, 6hours
+
+            The valid time units are:
+            seconds
+            minute(s)
+            hour(s)
+            day(s)
+            week(s)
+            month(s)
+            year(s)
+
+        page: 
+            Defines which page we are looking at of the matching results. 
+            If not set, the default value is 1
+
+        per_page: 
+            Defines how many results are returned per page. 
+            If not set this value defaults to 100. Maximum value is 1000
+
+        time: 
+            Returns the feed with the values as they were at the specified timestamp. 
+            There are a few points to note about this functionality:
+                Only the values of the datastream and their timestamps are changed, 
+                all other metadata reflects the current state of the feed and its datastreams
+                If a datastream had no values at the time specified (either because it didn't
+                exist or because it hadn't been updated) it will be excluded from the output
+        
+        find_previous:
+            Will also return the previous value to the date range being requested. 
+            Note that this is useful for any graphing because if you want to draw a graph of 
+            the date range you specified you would end up with a small gap until the first value.
+
+        interval_type:
+            If set to "discrete" the data will be returned in fixed time interval format 
+            according to the inverval value supplied. If this is not set, the raw datapoints
+            will be returned.
+
+        interval: 
+            Determines what interval of data is requested and is defined in seconds between
+            the datapoints. If a value is passed in which does not match one of these values, 
+            it is rounded up to the next value. 
+            The acceptable values are currently:
+                Value    Description                     Maximum range in one query
+                0        Every snapshot stored            6 hours
+                30       30 second interval data          12 hours
+                60       One snapshot every minute        24 hours
+                300      One snapshot every 5 minutes     5 days
+                900      One snapshot every 15 minutes    14 days
+                3600     One snapshot per hour            31 days
+                10800    One snapshot per three hours     90 days
+                21600    One snapshot per six hours       180 days
+                43200    One snapshot per twelve hours    1 year
+                86400    One snapshot per day             1 year
+
+
+        This request can also make use of the PNG format.
+        
+        Requesting the datastram as a PNG image will generate a graph. The time 
+        period that is shown is controlled by the history parameters passed to 
+        the request and the look and feel of this graph can be controlled by the
+        following parameters:
+        
+        Parameter    Description    Example
+        w    width in pixels         600
+        h    height in pixels        400
+        c    colour in hex           FFCC33
+        t    title                   My Favourite Graph
+        l    legend                  Legend For My Graph
+        s    strokesize in pixels    4
+        b    show axis labels        true / false
+        g    show detailed grid      true / false
+        
+        If api_key or feed_id arguments are not set when calling this method then the
+        values set during this object's instantiation (ie. in __init__) are used.
+        """
+        resource = '/feeds/%s/datastreams/%s' % (feed_id, datastream_id)
+        d = self._get(resource, parameters)
+        d.addCallback(self._getResponseBody)
+        d.addCallback(self._convertToPachubeStructure, txpachube.View_Datastream_Msg)
+        return d
+         
+        
+    def update_datastream(self, feed_id, datastream_id, data):
+        """
+        Update a single datastream
+
+        @param feed_id: The feed identifier
+        @type feed_id: string
+        @param datastream_id: A datastream identifier
+        @type datastream_id: string
+        @param format: The format to request the results in [json|xml|csv]
+        @type format: string
+        @param data: A representation of the datastream in the appropriate format.
+        @type data: string
+        
+        @return: A deferred that returns the success of the create based on
+                 the response header data. 
+        @rtype: boolean        
+        """
+        resource = '/feeds/%s/datastreams/%s' % (feed_id, datastream_id)
+        d = self._put(resource, data)
+        d.addCallback(self._getResponseCodeStatusFromHeader)
+        return d        
+        
+        
+    def delete_datastream(self, feed_id, datastream_id): 
+        """
+        The DELETE request does not require a format to be used. A request made to 
+        this URL will delete the object referred to by the ID. 
+        WARNING: This is final and cannot be undone.
+
+        @param feed_id: The feed identifier
+        @type feed_id: string
+        @param datastream_id: A datastream identifier
+        @type datastream_id: string
+        
+        @return: A deferred that returns the success of the delete based on
+                 the response header data. 
+        @rtype: boolean      
+        """
+        resource = '/feeds/%s/datastreams/%s' % (feed_id, datastream_id)
+        d = self._delete(resource)
+        d.addCallback(self._getResponseCodeStatusFromHeader)
+        return d
+
+
 
     def subscribe(self, resource, subscriptionHandler):
         """
