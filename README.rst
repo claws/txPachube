@@ -58,7 +58,7 @@ updates are available through the subscription feature exposed in the beta PAWS 
 Software Dependencies
 ---------------------
 
-* Python
+* Python (2.7 until a 'new in 2.7' call changed to support other versions)
 * Twisted
 
   - zope.interface
