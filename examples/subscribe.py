@@ -72,7 +72,7 @@ def updateHandler(dataStructure):
     
     The data structure returned will vary depending on the resource subscribed to. 
     If a datastream is specified the returned data structure will be a txpachube.Datastream
-    object. If just a feed specified then the returned data structure will be a 
+    object. If only a feed is specified then the returned data structure will be a 
     txpachube.Environment object.
     """
     logging.info("Subscription update message received:\n%s\n" % str(dataStructure))
@@ -84,13 +84,16 @@ def do_subscribe(connected, client, resource):
     """ Subscribe to the specified resource if the connection is established """
         
     if connected:
-        def handleSubscribeResponse(status):
-            print "Subscribe response status: %s" % status
+        
+        def handleSubscribeResponse(result):
+            token, response_code = result
+            print "Subscription token is: %s" % token
+            print "Subscribe response status: %s" % response_code
+            return result
             
-        token, d = client.subscribe(resource, updateHandler)
-        print "Subscription token is: %s" % token
+        d = client.subscribe(resource, updateHandler)
         d.addCallback(handleSubscribeResponse)
-                
+        
     else:
         print "Connection failed"
         reactor.callLater(0.1, reactor.stop)
@@ -101,7 +104,7 @@ def do_subscribe(connected, client, resource):
 
 if __name__ == '__main__':
     
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s : %(message)s")
+    logging.basicConfig(level=logging.DEBUG, format="%(asctime)s : %(message)s")
 
     client = PAWSClient(api_key=key)
     d = client.connect()

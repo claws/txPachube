@@ -58,7 +58,7 @@ updates are available through the subscription feature exposed in the beta PAWS 
 Software Dependencies
 ---------------------
 
-* Python (currently 2.7 until an inadvertant 'new in 2.7' call is changed to support older versions)
+* Python
 * Twisted
 
   - zope.interface
@@ -102,23 +102,29 @@ List Pachube feeds visible to the API key supplied::
     # In this case only 'live' feeds and 'summary' content is
     # being requested.
 
-    from twisted.internet import reactor
-    import txpachube
+    from twisted.internet import reactor, defer
+    import txpachube.client
 
     # Paste your Pachube API key here
     API_KEY = ""
 
 
+    @defer.inlineCallbacks
+    def demo():
+        client = txpachube.client.Client(api_key=API_KEY)
+        try:
+            feed_list = yield client.list_feeds(parameters={'status' : 'live', 'content' : 'summary'})
+            print "Received feed list content:\n%s\n" % feed_list
+        except Exception, ex:
+            print "Error listing visible feeds: %s" % str(ex)
+        
+        reactor.callLater(0.1, reactor.stop)
+        defer.returnValue(True) 
+    
+
     if __name__ == "__main__":
 
-        pachubeClient = txpachube.client.Client(api_key=API_KEY)
-
-        parameters = {'status' : 'live', 'content' : 'summary'}
-        d = pachubeClient.list_feeds(parameters=parameters)
-        d.addCallback(lambda environment_list: print "Received feed list content:\n%s\n" % environment_list)
-        d.addErrback(lambda reason: print "Error listing visible feeds: %s" % str(reason))
-        d.addCallback(reactor.stop)
-
+        reactor.callWhenRunning(demo)
         reactor.run()
 
 
@@ -127,31 +133,36 @@ Create a new feed::
     #!/usr/bin/env python 
     # This example demonstrates the ability to create new feeds. It also
     # shows an API key being passed to the create_feed method directly 
-    # because no default key was passed to the Client object initialiser.
+    # as no default key was passed to the Client object initialiser.
     # No format needs to be specified because json is the default format
     # used.
  
-    from twisted.internet import reactor
+    from twisted.internet import reactor, defer
     import txpachube
-    import json
+    import txpachube.client
 
     # Paste your Pachube API key here
     API_KEY = ""
 
-    environment = txpachube.Environment(title="A Temporary Test Feed", 
-                                        version="1.0.0")
-    json_feed_data = environment.encode()
 
+    @defer.inlineCallbacks
+    def demo():
+        
+        client = txpachube.client.Client()
+        try:
+            environment = txpachube.Environment(title="A Temporary Test Feed", version="1.0.0")
+            new_feed_id = yield client.create_feed(api_key=API_KEY, data=environment.encode())
+            print "Created new feed with id: %s" % new_feed_id
+        except Exception, ex:
+            print "Error creating new feed: %s" % str(ex)
+        
+        reactor.callLater(0.1, reactor.stop)
+        defer.returnValue(True) 
+        
 
     if __name__ == "__main__":
 
-        pachubeClient = txpachube.client.Client()
-
-        d = pachubeClient.create_feed(api_key=API_KEY, data=json_feed_data)
-        d.addCallback(lambda new_feed_id: print "Feed created. New feed id is: %s" % new_feed_id)
-        d.addErrback(lambda reason: print "Error creating feed: %s" % str(reason))
-        d.addCallback(reactor.stop)
-
+        reactor.callWhenRunning(demo)
         reactor.run()
 
 
@@ -167,6 +178,7 @@ Update a feed::
  
     from twisted.internet import reactor
     import txpachube
+    import txpachube.client
 
     # Paste your Pachube API key here
     API_KEY = ""
@@ -216,31 +228,40 @@ Read a feed::
    
     #!/usr/bin/env python 
     # This example demonstrates a request for feed data and uses
-    # additonal parameters to restrict the datastreams returned.
+    # additional parameters to restrict the datastreams returned.
     # It initialises the Client object with a default API key and
     # feed id so they do not need to be passed to the read_feed
     # method.
 
-    from twisted.internet import reactor
-    import txpachube
+    from twisted.internet import reactor, defer
+    import txpachube.client
 
     # Paste your Pachube API key here
     API_KEY = ""
 
-    # Paste the feed identifier you wish to be DELETED here
+    # Paste the feed identifier you wish to be read here
     FEED_ID = ""
-
+    
+    
+    @defer.inlineCallbacks
+    def demo():
+        
+        client = txpachube.client.Client(api_key=API_KEY, feed_id=FEED_ID)
+        try:
+            feed = yield client.read_feed(parameters={'datastream':'temperature'})
+            print "Received feed content:\n%s\n" % feed
+        except Exception, ex:
+            print "Error reading feed: %s" % str(ex)
+        
+        reactor.callLater(0.1, reactor.stop)
+        defer.returnValue(True) 
+        
 
     if __name__ == "__main__":
-        
-        pachubeClient = txpachube.client.Client(api_key=API_KEY, feed_id=FEED_ID)
 
-        d = pachubeClient.read_feed(parameters={txpachube.DataFields.Datastreams : 'temperature'})
-        d.addCallback(lambda environment: print "Received feed content:\n%s\n" % environment)
-        d.addErrback(lambda reason: print "Error retrieving feed data: %s" % str(reason))
-        d.addCallback(reactor.stop)
-
+        reactor.callWhenRunning(demo)
         reactor.run()
+        
 
 
 Delete a feed::
@@ -249,8 +270,8 @@ Delete a feed::
     # This example demonstrates the ability to delete a feed.
     # WARNING: This will REALLY delete the feed identifier listed. Make sure it is only a test feed. 
  
-    from twisted.internet import reactor
-    import txpachube
+    from twisted.internet import reactor, defer
+    import txpachube.client
 
     # Paste your Pachube API key here
     API_KEY = ""
@@ -259,16 +280,25 @@ Delete a feed::
     FEED_ID = ""
 
 
+    @defer.inlineCallbacks
+    def demo():
+        
+        client = txpachube.client.Client()
+        try:
+            feed_delete_status = yield client.delete_feed(api_key=API_KEY, feed_id=FEED_ID)
+            print "Deleted feed: %s" % feed_delete_status
+        except Exception, ex:
+            print "Error deleting feed: %s" % str(ex)
+        
+        reactor.callLater(0.1, reactor.stop)
+        defer.returnValue(True) 
+        
+
     if __name__ == "__main__":
 
-        pachubeClient = txpachube.client.Client(api_key=API_KEY)
-
-        d = pachubeClient.delete_feed(feed_id=FEED_ID)
-        d.addCallback(lambda result: print "Feed was deleted: %s" % result)
-        d.addErrback(lambda reason: print "Error deleting feed: %s" % str(reason))
-        d.addCallback(reactor.stop)
-
+        reactor.callWhenRunning(demo)
         reactor.run()
+
 
 
 Use the beta PAWS API to subscribe to a feed or datastream and receive updates
@@ -278,6 +308,7 @@ whenever the feed/datastream value changes::
 	
 	from twisted.internet import reactor
 	import txpachube
+	import txpachube.client
 	
     # Paste your Pachube API key here
     API_KEY = ""
@@ -314,8 +345,8 @@ whenever the feed/datastream value changes::
             
             def handleSubscribeResponse(status):
                 print "Subscribe response status: %s" % status
-
-			print "Subscribing for updates to: %s" % resource
+            
+            print "Subscribing for updates to: %s" % resource
             token, d = client.subscribe(resource, updateHandler)
             print "Subscription token is: %s" % token
             d.addCallback(handleSubscribeResponse)

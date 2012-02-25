@@ -1,9 +1,16 @@
 #!/usr/bin/env python
 
+#
+# This simple script provides tests cases that specifically test the
+# data structures.
+#
 try:
-    from xml.etree import cElementTree as etree
+    from lxml import etree
 except ImportError:
-    import xml.etree.ElementTree as etree
+    try:
+        from xml.etree import cElementTree as etree
+    except ImportError:
+        import xml.etree.ElementTree as etree
 import json
 import unittest
 try:
@@ -262,18 +269,29 @@ TEST_TRIGGERS_LIST_XML = """<?xml version="1.0" encoding="UTF-8"?>
   </datastream-trigger>
 </datastream-triggers>"""
 
-TEST_API_KEY_JSON = """{
+
+TEST_API_KEY_JSON = json.dumps({
   "key":{
-    "id":"1j2s8agjgksdjg",
-    "api_key":"CeWzga_cNja15kjwSVN5x5Mut46qj5akqKPvFxKIec0",
+    "api_key":"CeWzga_cNja15kjwSVN5x5Mut46qj5akqKPvFxKIec0",  
     "label":"sharing key",
+    "private_access": True,
     "permissions":[
       {
-        "access_methods":["get","put"]
-      }
+        "access_methods":["put"],
+        "source_ip": "128.44.98.129",
+        "resources": [
+          {
+            "feed_id": 504
+          },
+        ]
+      },
+      {
+        "access_methods": ["get"],
+      },
     ]
   }
-}"""
+})
+
 
 TEST_API_KEY_XML = """<?xml version="1.0" encoding="UTF-8"?>
 <key>
@@ -304,7 +322,6 @@ TEST_API_KEYS_LIST_JSON = """{"keys":[
                           "source_ip":"123.12.123.123"}]}
   }
 ]}"""
-
 
 TEST_API_KEYS_LIST_XML = """<?xml version="1.0" encoding="UTF-8"?>
 <keys>
@@ -771,7 +788,7 @@ class DataStructureTestCase(unittest.TestCase):
         key = txpachube.Key(**key_inDict)
         json_data = key.encode(txpachube.DataFormats.JSON)
         valid_json = json.loads(json_data)
-        
+
         
         key_list_inDict = json.loads(TEST_API_KEYS_LIST_JSON)
         key_list = txpachube.KeyList(**key_list_inDict)

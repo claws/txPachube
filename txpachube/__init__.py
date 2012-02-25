@@ -4,25 +4,19 @@
 This package implements the Pachube API in Python. It is built on top of the 
 Twisted event driven networking framework.
 
-This implementation closely follows the documented Pachube API
-located at: http://api.pachube.com/v2/
+This implementation closely follows the documented Pachube API located 
+at: http://api.pachube.com/v2/
+
 Much of the API documentation has been shamelessly duplicated within the
-method docstrings. The documentation on the Pachube API seems quite clear.
+method docstrings. The documentation on the Pachube API is quite clear.
 Embedding the documentation within the docstrings means that the Python
-help(txpachube) output will be useful.
-Always refer back to the Pachube site for the most recent, up to date, API
-documentation.
+help(txpachube) output will be useful. Always refer back to the Pachube 
+site for the most recent, up to date, API documentation.
 
 The Pachube API allows users to request data in a variety of formats.
-This implementation performs the following:
-1. If JSON (default) format is requested, and the request is expected to
-   return a response body then the result returned to the user of this
-   module is a dict produced from json decoding the body string. This should 
-   make the result object easier to use.
-2. Any other format will return a string and you are free to manipulate
-   it as you see fit. For example if XML format is requested then you 
-   may choose to parse this with ElementTree, minidom, etc. PNG is a 
-   valid response in a once circumstance.
+Currently only JSON and XML are supported by this implementation.
+Specifying a different format will return a string and you are free to 
+manipulate it as you see fit.
    
 Dependencies (other than Python):
 twisted 11.0.0
@@ -31,16 +25,19 @@ pyOpenSSL
 """
 import datetime
 try:
-    from xml.etree import cElementTree as etree
+    from lxml import etree
 except ImportError:
-    import xml.etree.ElementTree as etree
+    try:
+        from xml.etree import cElementTree as etree
+    except ImportError:
+        import xml.etree.ElementTree as etree
 import json
 import logging
 import urllib
 
 
 
-version = (0, 0, 2)
+version = (0, 0, 3)
 
 
 
@@ -51,10 +48,14 @@ EEML_NAMESPACE = 'eeml'
 OPENSEARCH_NAMESPACE = 'opensearch'
 namespace_map = {EEML_NAMESPACE : 'http://www.eeml.org/xsd/0.5.1',
                  OPENSEARCH_NAMESPACE : 'http://a9.com/-/spec/opensearch/1.1/'}
-for namespace in namespace_map:
-    etree.register_namespace(namespace, namespace_map[namespace])
+try:
+    register_namespace = etree.register_namespace
+except AttributeError:
+    def register_namespace(prefix, uri):
+        etree._namespace_map[uri] = prefix
 
-        
+for prefix, uri in namespace_map.items():
+    register_namespace(prefix, uri)
 
 class DataFormats(object):
     """
@@ -74,88 +75,89 @@ class DataFields(object):
     """
     # A selection of common environment field keys that are useful when
     # building/inspecting json format objects to be sent to pachube.
-    About = 'about'
-    Access_Method = 'access_method'
-    Access_Methods = 'access_methods'
-    Api_Key = 'api_key'
-    At = 'at'
-    Creatable_Role = 'creatable_role'
-    Creatable_Roles = 'creatable_roles'
-    Creator = 'creator'
-    Current_Value = 'current_value'
-    Data = 'data'
-    Datapoints = 'datapoints'
-    Datastream_Id = 'datastream_id'
-    Datastream_Trigger = 'datastream-trigger'
-    Datastream_Triggers = 'datastream-triggers'
-    Datastreams = 'datastreams'
-    Datastreams_Allowed = 'datastreams_allowed'
-    Datastreams_Count = 'datastreams_count'
-    Deliver_Email = 'deliver_email'
-    Description = 'description'
-    Display_Activity = 'display_activity'
-    Display_Information = 'display_information'
-    Display_Stats = 'display_stats'
-    Disposition = 'disposition'
-    Domain = 'domain'
-    Elevation = 'ele'
-    Email = 'email'
-    Environment = 'environment'
-    Environment_Id = 'environment_id'
-    Exposure = 'exposure'
-    Feed = 'feed'
-    Feed_Id = 'feed_id'
-    First_Name = 'first_name'
-    Full_Name = 'full_name'
-    Icon = 'icon'
-    Id = 'id'
-    Key = 'key'
-    Keys = 'keys'
-    Label = 'label'  # unit label
-    Last_Name = 'last_name'
-    Latitude = 'lat'
-    Location = 'location'
-    Login = 'login'
-    Longitude = 'lon'
-    Maximum_Value = 'max_value'
-    Minimum_Value = 'min_value'
-    Name = 'name'
-    Notified_At = 'notified_at'
-    Organisation = 'organisation'
-    Permission = 'permission'
-    Permissions = 'permissions'
-    Private = 'private'
-    Private_Access = 'private_access'
-    Receive_Forum_Notifications = 'receive_formum_notifications'
-    Referer = 'referer'
-    Resources = 'resources'
-    Results = 'results'
-    Role = 'role'
-    Roles = 'roles'
-    Source_Ip = 'source_ip'
-    Status = 'status'
-    Stream_Id = 'stream_id'
-    Subscribed_To_Mailings = 'subscribed_to_mailings'
-    Symbol = 'symbol'  # unit symbol
-    Tag = 'tag'
-    Tags = 'tags'
-    Threshold_Value = 'threshold_value'
-    Title = 'title'
-    Timestamp = 'timestamp'
-    Timezone = 'timezone'
-    Total_Api_Access_Count = 'total_api_access_count'
-    Total_Results = 'totalResults'
-    Triggering_Datastream = 'triggering_datastream'
-    Trigger_Type = 'trigger_type'
-    Type = 'type'  # unit type
-    Unit = 'unit'
-    User = 'user'
-    Users = 'users'
-    Updated = 'updated'
-    Url = 'url'
-    Value = 'value'
-    Version = 'version'
-    Website = 'website'
+    About = u'about'
+    Access_Method = u'access_method'
+    Access_Methods = u'access_methods'
+    Api_Key = u'api_key'
+    At = u'at'
+    Creatable_Role = u'creatable_role'
+    Creatable_Roles = u'creatable_roles'
+    Creator = u'creator'
+    Current_Value = u'current_value'
+    Data = u'data'
+    Datapoints = u'datapoints'
+    Datastream_Id = u'datastream_id'
+    Datastream_Trigger = u'datastream-trigger'
+    Datastream_Triggers = u'datastream-triggers'
+    Datastreams = u'datastreams'
+    Datastreams_Allowed = u'datastreams_allowed'
+    Datastreams_Count = u'datastreams_count'
+    Deliver_Email = u'deliver_email'
+    Description = u'description'
+    Display_Activity = u'display_activity'
+    Display_Information = u'display_information'
+    Display_Stats = u'display_stats'
+    Disposition = u'disposition'
+    Domain = u'domain'
+    Elevation = u'ele'
+    Email = u'email'
+    Environment = u'environment'
+    Environment_Id = u'environment_id'
+    Exposure = u'exposure'
+    Feed = u'feed'
+    Feed_Id = u'feed_id'
+    First_Name = u'first_name'
+    Full_Name = u'full_name'
+    Icon = u'icon'
+    Id = u'id'
+    Key = u'key'
+    Keys = u'keys'
+    Label = u'label'  # unit label
+    Last_Name = u'last_name'
+    Latitude = u'lat'
+    Location = u'location'
+    Login = u'login'
+    Longitude = u'lon'
+    Maximum_Value = u'max_value'
+    Minimum_Interval = u'minimum_interval'
+    Minimum_Value = u'min_value'
+    Name = u'name'
+    Notified_At = u'notified_at'
+    Organisation = u'organisation'
+    Permission = u'permission'
+    Permissions = u'permissions'
+    Private = u'private'
+    Private_Access = u'private_access'
+    Receive_Forum_Notifications = u'receive_formum_notifications'
+    Referer = u'referer'
+    Resources = u'resources'
+    Results = u'results'
+    Role = u'role'
+    Roles = u'roles'
+    Source_Ip = u'source_ip'
+    Status = u'status'
+    Stream_Id = u'stream_id'
+    Subscribed_To_Mailings = u'subscribed_to_mailings'
+    Symbol = u'symbol'  # unit symbol
+    Tag = u'tag'
+    Tags = u'tags'
+    Threshold_Value = u'threshold_value'
+    Title = u'title'
+    Timestamp = u'timestamp'
+    Timezone = u'timezone'
+    Total_Api_Access_Count = u'total_api_access_count'
+    Total_Results = u'totalResults'
+    Triggering_Datastream = u'triggering_datastream'
+    Trigger_Type = u'trigger_type'
+    Type = u'type'  # unit type
+    Unit = u'unit'
+    User = u'user'
+    Users = u'users'
+    Updated = u'updated'
+    Url = u'url'
+    Value = u'value'
+    Version = u'version'
+    Website = u'website'
 
 
 
@@ -213,13 +215,13 @@ class DataStructure(object):
         
         elif format == DataFormats.XML:
             eeml = etree.Element('eeml')
-            eeml.attrib['xmlns'] = 'http://www.eeml.org/xsd/0.5.1'
-            eeml.attrib['xmlns:xsi'] = 'http://www.w3.org/2001/XMLSchema-instance'
+            #eeml.attrib['xmlns'] = namespace_map[EEML_NAMESPACE]
+            eeml.attrib['{%s}xsi' % namespace_map[EEML_NAMESPACE]] = 'http://www.w3.org/2001/XMLSchema-instance'
             eeml.attrib['version'] = '0.5.1'
-            eeml.attrib['xsi:schemaLocation'] = 'http://www.eeml.org/xsd/005'
+            eeml.attrib['{%s}schemaLocation' % namespace_map[EEML_NAMESPACE]] = 'http://www.eeml.org/xsd/005'
             eeml.append(self.toXml())
-            return etree.tostring(eeml, 'utf-8')            
-
+            return etree.tostring(eeml)
+        
         else:
             raise Exception("Don't know how to encode %s using format %s" % (self.__class__.__name__,
                                                                              format))
@@ -294,7 +296,7 @@ class Unit(DataStructure):
         for attribute in self._attributes:
             attribute_value = getattr(self, attribute, None)
             if attribute_value:
-                unitDict[attribute] = str(attribute_value)
+                unitDict[attribute] = unicode(attribute_value)
         return unitDict
     
 
@@ -309,7 +311,7 @@ class Unit(DataStructure):
                     if attribute_value not in Unit.Valid_Unit_Types:
                         raise Exception("Invalid unit type \'%s\' not in %s" % (attribute_value,
                                                                                 Unit.Valid_Unit_Types))
-                setattr(self, attribute, attribute_value)        
+                setattr(self, attribute, attribute_value)      
         
             
     def toXml(self, parent=None):
@@ -343,11 +345,11 @@ class Unit(DataStructure):
         if unit is not None:
             unit_type = unit.attrib.get(DataFields.Type, None)
             if unit_type:
-                self.type = unit_type
+                self.type = unicode(unit_type)
             unit_symbol = unit.attrib.get(DataFields.Symbol, None)
             if unit_symbol:
-                self.symbol = unit_symbol
-            self.label = unit.text
+                self.symbol = unicode(unit_symbol)
+            self.label = unicode(unit.text)
     
     
 
@@ -373,7 +375,7 @@ class Datapoint(DataStructure):
         for attribute in self._attributes:
             attribute_value = getattr(self, attribute, None)
             if attribute_value:
-                datapointDict[attribute] = str(attribute_value)
+                datapointDict[attribute] = unicode(attribute_value)
         return datapointDict
     
     
@@ -414,12 +416,92 @@ class Datapoint(DataStructure):
         if datapoint is not None:
             at_time = datapoint.attrib.get(DataFields.At, None)
             if at_time:
-                self.at = at_time
+                self.at = unicode(at_time)
             value = datapoint.text
             if value:
-                self.value = value       
-  
+                self.value = value 
+
+
+class Permission(DataStructure):
+    """ Models a Permission item within a API key """
     
+    def __init__(self, **kwargs):
+        self._attributes = [DataFields.Access_Methods,
+                            DataFields.Label,
+                            DataFields.Minimum_Interval,
+                            DataFields.Referer,
+                            DataFields.Resources,
+                            DataFields.Source_Ip]
+        
+        self.access_methods = None
+        self.label = None
+        self.minimum_interval = None
+        self.referer = None
+        self.resources = None
+        self.source_ip = None
+
+        # initialise Permissions attributes to specified values or None.
+        self.fromDict(kwargs)
+        
+
+    def toDict(self):
+        """ 
+        Return the data structure object as a dict. This method is used as 
+        a helper function for JSON serialization/deserialization.
+        """
+        permissionDict = dict()
+        for attribute in self._attributes:
+            attribute_value = getattr(self, attribute, None)
+            if attribute_value:
+                if attribute == DataFields.Access_Methods:
+                    permissionDict[attribute] = attribute_value
+                else:
+                    permissionDict[attribute] = unicode(attribute_value)
+        return permissionDict
+    
+    
+    def fromDict(self, inDict):
+        """
+        Populate attributes from a dict
+        """
+        for attribute in self._attributes:
+            attribute_value = inDict.get(attribute, None)
+            if attribute_value:
+                setattr(self, attribute, attribute_value)
+    
+    
+    def toXml(self, parent=None):
+        """ 
+        Return the object as an xml ElementTree 
+        
+        @param parent: The parent element
+        @type parent: etree.Element
+        
+        @return: XML representation of the object
+        @rtype: etree.Element
+        """
+        permission = etree.Element(DataFields.Permission)
+        access_methods = etree.SubElement(permission, DataFields.Access_Methods)
+        for p in self.access_methods:
+             access_method = etree.SubElement(access_methods, DataFields.Access_Method)
+             access_method.text = p
+        return permission
+
+    def fromXml(self, element):
+        """
+        Populate attributes from a XML etree
+        
+        @param xml: an xml element tree
+        @type xml: etree.Element
+        """
+        permission = permissions.find(DataFields.Permission)
+        if permisison is not None:
+            access_methods = permission.find(DataFields.Access_Methods)
+            if access_methods is not None:
+                self.access_methods = []
+                for access_method in access_methods.findall(DataFields.Access_Method):
+                    self.access_methods.append(access_method.text)         
+     
     
 class Location(DataStructure):
 
@@ -468,7 +550,7 @@ class Location(DataStructure):
         for attribute in self._attributes:
             attribute_value = getattr(self, attribute, None)
             if attribute_value:
-                locationDict[attribute] = str(attribute_value)
+                locationDict[attribute] = attribute_value
         return locationDict
 
 
@@ -519,13 +601,13 @@ class Location(DataStructure):
             name.text = self.name
         if self.lat:
             lat = etree.SubElement(location, DataFields.Latitude)
-            lat.text = str(self.lat)                
+            lat.text = unicode(self.lat)                
         if self.lon:
             lon = etree.SubElement(location, DataFields.Longitude)
-            lon.text = str(self.lon)
+            lon.text = unicode(self.lon)
         if self.ele:
             ele = etree.SubElement(location, DataFields.Elevation)
-            ele.text = str(self.ele)
+            ele.text = unicode(self.ele)
                             
         return location      
 
@@ -564,7 +646,7 @@ class Location(DataStructure):
                 
             elevaltion = location.find(DataFields.Elevation)
             if elevaltion is not None:
-                self.ele = elevaltion.text                
+                self.ele = unicode(elevaltion.text)              
    
     
     
@@ -581,16 +663,16 @@ class Datastream(DataStructure):
                             DataFields.Tags,
                             DataFields.Unit,
                             DataFields.Updated]
+        self.id = None
         self.at = None
         self.current_value = None
-        self.datapoints = []
-        self.id = None
         self.max_value = None
         self.min_value = None
+        self.updated = None
+        self.datapoints = []
         self.tags = []
         self.unit = None
-        self.updated = None
-
+        
         # initialise attributes to specified values.
         self.fromDict(kwargs)
 
@@ -614,7 +696,7 @@ class Datastream(DataStructure):
                     unit = attribute_value
                     datastreamDict[attribute] = unit.toDict()
                 else:
-                    datastreamDict[attribute] = str(attribute_value)
+                    datastreamDict[attribute] = unicode(attribute_value)
         return datastreamDict
     
     
@@ -652,7 +734,7 @@ class Datastream(DataStructure):
         @rtype: etree.Element
         """
         data = etree.Element(DataFields.Data)
-        data.attrib[DataFields.Datastream_Id] = str(self.id)
+        data.attrib[DataFields.Datastream_Id] = unicode(self.id)
         
         if self.tags:
             for tag_label in self.tags:
@@ -661,22 +743,22 @@ class Datastream(DataStructure):
                 
         if self.current_value:
             current_value = etree.SubElement(data, DataFields.Current_Value)
-            current_value.text = str(self.current_value)
+            current_value.text = self.current_value
             
         if self.max_value:
             max_value = etree.SubElement(data, DataFields.Maximum_Value)
-            max_value.text = str(self.max_value)
+            max_value.text = unicode(self.max_value)
         
         if self.min_value:
             min_value = etree.SubElement(data, DataFields.Minimum_Value)
-            min_value.text = str(self.min_value)
+            min_value.text = unicode(self.min_value)
                         
         if self.unit:
             data.append(self.unit.toXml())
 
         if self.updated:
             updated = etree.SubElement(data, DataFields.Updated)
-            updated.text = str(self.updated)
+            updated.text = self.updated
                         
         if self.datapoints:
             datapoints = etree.SubElement(data, DataFields.Datapoints)
@@ -706,14 +788,14 @@ class Datastream(DataStructure):
                     
             current_value = data.find(DataFields.Current_Value)
             if current_value is not None:
-                self.current_value = current_value.text
+                self.current_value = unicode(current_value.text)
                 at_time = current_value.attrib.get(DataFields.At, None)
                 if at_time:
-                    self.at = at_time
+                    self.at = unicode(at_time)
                 
             max_value = data.find(DataFields.Maximum_Value)
             if max_value is not None:
-                self.max_value = max_value .text          
+                self.max_value = max_value.text          
 
             min_value = data.find(DataFields.Minimum_Value)
             if min_value is not None:
@@ -726,7 +808,7 @@ class Datastream(DataStructure):
                 
             updated = data.find(DataFields.Updated)
             if updated is not None:
-                self.updated = updated.text
+                self.updated = unicode(updated.text)
                                 
             datapoints = data.find(DataFields.Datapoints)
             if datapoints is not None:
@@ -833,7 +915,7 @@ class Environment(DataStructure):
                         datastreams.append(datastream.toDict())
                         environmentDict[DataFields.Datastreams] = datastreams
                 else:
-                    environmentDict[attribute] = str(attribute_value)
+                    environmentDict[attribute] = attribute_value
         return environmentDict
     
 
@@ -871,40 +953,40 @@ class Environment(DataStructure):
         """
         env = etree.Element(DataFields.Environment)
         if self.creator:
-            env.attrib[DataFields.Creator] = str(self.creator)
+            env.attrib[DataFields.Creator] = self.creator
         if self.id:
-            env.attrib[DataFields.Id] = str(self.id)
+            env.attrib[DataFields.Id] = unicode(self.id)
         if self.updated: 
-            env.attrib[DataFields.Updated] = str(self.updated)
+            env.attrib[DataFields.Updated] = unicode(self.updated)
             
         if self.description:
             desc = etree.SubElement(env, DataFields.Description)
-            desc.text = str(self.description)
+            desc.text = unicode(self.description)
         if self.feed:
             feed = etree.SubElement(env, DataFields.Feed)
-            feed.text = str(self.feed)
+            feed.text = unicode(self.feed)
         if self.icon:
             icon = etree.SubElement(env, DataFields.Icon)
-            icon.text = str(self.icon)
+            icon.text = unicode(self.icon)
         if self.private:
             private = etree.SubElement(env, DataFields.Private)
-            private.text = str(self.private)
+            private.text = unicode(self.private)
         if self.status:
             status = etree.SubElement(env, DataFields.Status)
-            status.text = str(self.status)
+            status.text = unicode(self.status)
         if self.tags:
             for tag_text in self.tags:
                 tag = etree.SubElement(env, DataFields.Tag)
-                tag.text = str(tag_text)
+                tag.text = unicode(tag_text)
         if self.title:
             title = etree.SubElement(env, DataFields.Title)
-            title.text = str(self.title)
+            title.text = unicode(self.title)
         if self.version:
             version = etree.SubElement(env, DataFields.Version)
-            version.text = str(self.version)                
+            version.text = unicode(self.version)                
         if self.website:
             website = etree.SubElement(env, DataFields.Website)
-            website.text = str(self.website) 
+            website.text = unicode(self.website)
                             
         if self.location:
             env.append(self.location.toXml())
@@ -1146,10 +1228,11 @@ class EnvironmentList(DataStructure):
         Return a string representation of the object encoded in the specified format.
         Override the default inherited implementation so we can add the opensearch
         element.
-        """
-        # the txpachube implementation only ever receives environment lists from Pachube.
-        # It never sends them, hence this method is never used.
-        """ 
+
+        NOTE: The txpachube implementation only ever receives environment lists from 
+        Pachube. It never sends them, hence this method is never really used. It is 
+        only implemented here to suppport test cases.
+
         Return a string representation of the object encoded in the specified format
         """
         if format == DataFormats.JSON:
@@ -1157,11 +1240,11 @@ class EnvironmentList(DataStructure):
         
         elif format == DataFormats.XML:
             eeml = etree.Element('eeml')
-            eeml.attrib['xmlns'] = 'http://www.eeml.org/xsd/0.5.1'
-            eeml.attrib['xmlns:xsi'] = 'http://www.w3.org/2001/XMLSchema-instance'
-            #eeml.attrib['xmlns:opensearch'] = "http://a9.com/-/spec/opensearch/1.1/"
+            #eeml.attrib['xmlns'] = namespace_map[EEML_NAMESPACE]
+            eeml.attrib['{%s}xsi' % namespace_map[EEML_NAMESPACE]] = 'http://www.w3.org/2001/XMLSchema-instance'
+            eeml.attrib['{%s}opensearch'% namespace_map[EEML_NAMESPACE]] = namespace_map[OPENSEARCH_NAMESPACE]
             eeml.attrib['version'] = '0.5.1'
-            eeml.attrib['xsi:schemaLocation'] = 'http://www.eeml.org/xsd/005'
+            eeml.attrib['{%s}schemaLocation' % namespace_map[EEML_NAMESPACE]] = 'http://www.eeml.org/xsd/005'
             total_results = etree.SubElement(eeml, '{%s}%s' % (namespace_map[OPENSEARCH_NAMESPACE], DataFields.Total_Results))
             total_results.text = str(self.total_results)
             startIndex = etree.SubElement(eeml, '{%s}startIndex' % (namespace_map[OPENSEARCH_NAMESPACE]))
@@ -1170,14 +1253,13 @@ class EnvironmentList(DataStructure):
             itemsPerPage.text = "50"
             for feed in self.feeds:
                 eeml.append(feed.toXml())
-            return etree.tostring(eeml, 'utf-8')            
-
+            return etree.tostring(eeml, encoding='utf-8')
+        
         else:
             raise Exception("Don't know how to encode %s using format %s" % (self.__class__.__name__,
                                                                              format))
 
-    
-    
+
     def decode(self, data, format=DataFormats.JSON):
         """ 
         Decode data, in the specified format, into local attributes
@@ -1239,7 +1321,7 @@ class Trigger(DataStructure):
                 if attribute in [DataFields.Id, DataFields.Environment_Id]:
                     triggerDict[attribute] = attribute_value
                 else:
-                    triggerDict[attribute] = str(attribute_value)
+                    triggerDict[attribute] = attribute_value
         return triggerDict
     
     
@@ -1270,7 +1352,7 @@ class Trigger(DataStructure):
         datastream_trigger = etree.Element(DataFields.Datastream_Trigger)
         id = etree.SubElement(datastream_trigger, DataFields.Id)
         id.attrib['type'] = 'integer'
-        id.text = str(self.id)
+        id.text = unicode(self.id)
         
         if self.url:
             url = etree.SubElement(datastream_trigger, DataFields.Url)
@@ -1292,7 +1374,7 @@ class Trigger(DataStructure):
         if self.environment_id:
             environment_id = etree.SubElement(datastream_trigger, DataFields.Environment_Id.replace("_", "-"))
             environment_id.attrib['type'] = 'integer'
-            environment_id.text = str(self.environment_id)
+            environment_id.text = unicode(self.environment_id)
         if self.stream_id:
             stream_id = etree.SubElement(datastream_trigger, DataFields.Stream_Id)
             stream_id.text = self.stream_id
@@ -1344,7 +1426,7 @@ class Trigger(DataStructure):
         
         elif format == DataFormats.XML:
             # This XML structure is not wrapped in EEML headers
-            return etree.tostring(self.toXml(), 'utf-8')            
+            return etree.tostring(self.toXml(), encoding='utf-8')           
 
         else:
             raise Exception("Don't know how to encode %s using format %s" % (self.__class__.__name__,
@@ -1461,7 +1543,7 @@ class TriggerList(DataStructure):
         
         elif format == DataFormats.XML:
             # This XML structure is not wrapped in EEML headers
-            return etree.tostring(self.toXml(), 'utf-8')            
+            return etree.tostring(self.toXml(), encoding='utf-8')            
 
         else:
             raise Exception("Don't know how to encode %s using format %s" % (self.__class__.__name__,
@@ -1489,21 +1571,21 @@ class TriggerList(DataStructure):
                                                                              format))  
     
     
-# TODO: Define a Permisisons data structure and use it in Key structures. 
             
 class Key(DataStructure):
     """ Models a API Key item """
 
     
     def __init__(self, **kwargs):
-        self._attributes = [DataFields.Id,
-                            DataFields.Api_Key,
+        self._attributes = [DataFields.Api_Key,
                             DataFields.Label,
-                            DataFields.Permissions]
-        self.id = None
+                            DataFields.Permissions,
+                            DataFields.Private_Access]
+
         self.api_key = None
         self.label = None
         self.permissions = None
+        self.private_access = None
 
         # initialise attributes to specified values or None.
         self.fromDict(kwargs)
@@ -1517,14 +1599,16 @@ class Key(DataStructure):
         keyDict = dict()
         keyAttrsDict = dict()
         for attribute in self._attributes:
-            attribute_value = getattr(self, attribute, None)
-            if attribute_value:
-                if attribute == DataFields.Permissions:
-                    access_methods = dict()
-                    access_methods[DataFields.Access_Methods] = attribute_value
-                    keyAttrsDict[attribute] = access_methods
-                else:
-                    keyAttrsDict[attribute] = str(attribute_value)
+            if attribute == DataFields.Permissions:
+                permissions_list = list()
+                if self.permissions:
+                    for permission in self.permissions:
+                        permissions_list.append(permission.toDict())
+                keyAttrsDict[attribute] = permissions_list
+            else:
+                attribute_value = getattr(self, attribute, None)
+                if attribute_value:
+                    keyAttrsDict[attribute] = attribute_value
         keyDict[DataFields.Key] = keyAttrsDict
         return keyDict
     
@@ -1534,13 +1618,77 @@ class Key(DataStructure):
         Populate attributes from a dict
         """
         keyDict = inDict.get(DataFields.Key, None)
+        
+        # There is an inconsistency between viewing a single API key and viewing
+        # a list of API keys. The key object returned from a request to view a
+        # single key is wrapped in a dict with a key called 'key'. For example:
+        #{
+        #  "key":{
+        #    "api_key":"CeWzga_cNja15kjwSVN5x5Mut46qj5akqKPvFxKIec0",
+        #    "label":"sharing key",
+        #    "permissions":[
+        #      {
+        #        "access_methods":["get","put"]
+        #      }
+        #    ]
+        #  }
+        #}
+        #
+        #
+        # But each key object returned from a request to view multiple keys is
+        # not wrapped in the same structure. For example:
+        #{"keys":[
+        #  {
+        #    "api_key":"CeWzga_cNja15kjwSVN5x5Mut46qj5akqKPvFxKIec0",
+        #    "label": "sharing key 1",
+        #    "permissions":[
+        #      {
+        #        "access_methods":["get"],
+        #      }
+        #    ]
+        #  },
+        #  {
+        #    "api_key":"zR9eEw3WfrSY1-abcdefghasdfaoisdj109usasdf0a9sf",
+        #    "label": "sharing key 2",
+        #    "permissions":[
+        #      {
+        #        "access_methods":["put"],
+        #        "source_ip":"123.12.123.123"
+        #      }
+        #    ]
+        #  }
+        #]}
+        #
+        # Each item is the keys list is supposed to be a key yet it does not follow
+        # the same key definition structure. It is missing the encolsing 'key' dict.
+        #
+        # This makes it slightly harder to simply pass each key section in a
+        # multiple key listing response to the Key initialiser - because it is
+        # expecting a normal key structure. 
+        # So as a workaround to cater for the two different specifications of a 
+        # key we first attempt to crack the inDict using the expected structure 
+        # and if that fails we then look into the inDict and check if it contains 
+        # the expected key attributes.
+        #
+        if keyDict is None:
+            inDictlooksLikeAKeyDict = False
+            for attribute in self._attributes:
+                if attribute in inDict:
+                    inDictlooksLikeAKeyDict = True
+            if inDictlooksLikeAKeyDict:
+                keyDict = inDict
+                
         if keyDict:
             for attribute in self._attributes:
                 attribute_value = keyDict.get(attribute, None)
                 if attribute_value:
                     if attribute == DataFields.Permissions:
-                        attribute_value = attribute_value[0][DataFields.Access_Methods]
-                    setattr(self, attribute, attribute_value)
+                        self.permissions = []
+                        for permissionDict in attribute_value:
+                            self.permissions.append(Permission(**permissionDict))
+                    else:
+                        setattr(self, attribute, attribute_value)
+
 
         
     def toXml(self, parent=None):
@@ -1555,23 +1703,19 @@ class Key(DataStructure):
         """
         key = etree.Element(DataFields.Key)
         
-        if self.id:
-            id = etree.SubElement(key, DataFields.Id)
-            id.text = self.id
         if self.api_key:
             api_key = etree.SubElement(key, DataFields.Api_Key)
             api_key.text = self.api_key
         if self.label:
             label = etree.SubElement(key, DataFields.Label)
             label.text = self.label
+        if self.private_access:
+            private_access = etree.SubElement(key, DataFields.Private_Access)
+            private_access.text = unicode(self.private_access)
         if self.permissions:
             permissions = etree.SubElement(key, DataFields.Permissions)
-            permission = etree.SubElement(permissions, DataFields.Permission)
-            access_methods = etree.SubElement(permissions, DataFields.Access_Methods)
-            for p in self.permissions:
-                 access_method = etree.SubElement(access_methods, DataFields.Access_Method)
-                 access_method.text = p
-                 
+            for permission in self.permissions:
+                permissions.append(permission.toXml())
         return key
 
 
@@ -1585,24 +1729,24 @@ class Key(DataStructure):
 
         key = element.find(DataFields.Key)
         if key is not None:
-            id = key.find(DataFields.Id)
-            if id is not None:
-                self.id = id.text
             api_key = key.find(DataFields.Api_Key)
             if api_key is not None:
                 self.api_key = api_key.text                
             label = key.find(DataFields.Label)
             if label is not None:
                 self.label = label.text
+            private_access = key.find(DataFields.Private_Access)
+            if private_access is not None:
+                self.private_access = private_access.text == "True"              
             permissions = key.find(DataFields.Permissions)
             if permissions is not None:
-                permission = permissions.find(DataFields.Permission)
-                if permisison is not None:
-                    access_methods = permission.find(DataFields.Access_Methods)
-                    if access_methods is not None:
-                        self.permissions = []
-                        for access_method in access_methods.findall(DataFields.Access_Method):
-                            self.permissions.append(access_method.text) 
+                permission_elements = permissions.findall(DataFields.Permission)
+                if permission_elements:
+                    self.permissions = list()
+                    for permission_element in permission_elements:
+                        permission = Permission()
+                        permission.fromXml(permission_element)
+                        self.permissions.append(permission)
 
 
     def encode(self, format=DataFormats.JSON):
@@ -1614,7 +1758,7 @@ class Key(DataStructure):
         
         elif format == DataFormats.XML:
             # This XML structure is not wrapped in EEML headers
-            return etree.tostring(self.toXml(), 'utf-8')            
+            return etree.tostring(self.toXml(), encoding='utf-8')            
 
         else:
             raise Exception("Don't know how to encode %s using format %s" % (self.__class__.__name__,
@@ -1669,7 +1813,7 @@ class KeyList(DataStructure):
         Populate attributes from a dict
         """
         keysList = inDict.get(DataFields.Keys, None)
-        if keysList is not None:
+        if keysList:
             self.keys = []
             for keyDict in keysList:
                 key = Key(**keyDict)
@@ -1719,7 +1863,7 @@ class KeyList(DataStructure):
         
         elif format == DataFormats.XML:
             # This XML structure is not wrapped in EEML headers
-            return etree.tostring(self.toXml(), 'utf-8')            
+            return etree.tostring(self.toXml(), encoding='utf-8')            
 
         else:
             raise Exception("Don't know how to encode %s using format %s" % (self.__class__.__name__,
@@ -1851,10 +1995,10 @@ class User(DataStructure):
                 creatable_role.text = role_text
         if self.datastreams_allowed:
             datastreams_allowed = etree.SubElement(user, DataFields.Datastreams_Allowed)
-            datastreams_allowed.text = str(self.datastreams_allowed)
+            datastreams_allowed.text = unicode(self.datastreams_allowed)
         if self.datastreams_count:
             datastreams_count = etree.SubElement(user, DataFields.Datastreams_Count)
-            datastreams_count.text = str(self.datastreams_count)
+            datastreams_count.text = unicode(self.datastreams_count)
         if self.deliver_email:
             deliver_email = etree.SubElement(user, DataFields.Deliver_Email)
             deliver_email.text = self.deliver_email
@@ -1994,7 +2138,7 @@ class User(DataStructure):
         
         elif format == DataFormats.XML:
             # This XML structure is not wrapped in EEML headers
-            return etree.tostring(self.toXml(), 'utf-8')            
+            return etree.tostring(self.toXml(), encoding='utf-8')            
 
         else:
             raise Exception("Don't know how to encode %s using format %s" % (self.__class__.__name__,
@@ -2108,7 +2252,7 @@ class UserList(DataStructure):
         
         elif format == DataFormats.XML:
             # This XML structure is not wrapped in EEML headers
-            return etree.tostring(self.toXml(), 'utf-8')            
+            return etree.tostring(self.toXml(), encoding='utf-8')            
 
         else:
             raise Exception("Don't know how to encode %s using format %s" % (self.__class__.__name__,

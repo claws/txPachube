@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 
-
-
 import json
 import logging
 import txpachube
@@ -13,8 +11,6 @@ from twisted.web.client import Agent, ResponseDone
 from twisted.web.http_headers import Headers
 from twisted.web.iweb import IBodyProducer
 from zope.interface import implements
-
-
 
 
 # NOTE:
@@ -70,11 +66,13 @@ class ResponseBodyProtocol(Protocol):
         """
         r = reason.trap(ResponseDone)
         if r == ResponseDone:
-            logging.debug('Finished receiving body: %s' % reason.getErrorMessage())
+            logging.debug(reason.getErrorMessage())
             responseData = "".join(self.buffer)
             self.buffer = []
             result = (self.response, responseData)
             self.finished.callback(result)
+        else:
+            logging.error("Problem reading response body: %s" % reason.getErrorMessage())
             
             
             
@@ -168,16 +166,6 @@ class Client(object):
             logging.error('Error communicating with url %s\nError: %s\n' % (url, failure))
         else:
             logging.error('Error detected: %s' % (failure))
-
-
-    def _getResponseBody(self, result):
-        """
-        Most responses need to deliver the response body data. Some need
-        to return data from the header only. This method provides the 
-        ability to return only the response body data.
-        """
-        response, body = result
-        return body
     
     
     def _convertToPachubeStructure(self, data, format, kind):
@@ -191,27 +179,24 @@ class Client(object):
 
 
 
-    def _getResponseCodeStatusFromHeader(self, result):
+    def _getResponseCodeStatusFromHeader(self, response):
         """
         Most responses need to deliver the response body data. Some need
         to return data from the header only. This method provides the 
         ability to return a success/fail criteria based on the response
         header code received.
         """
-        response, body = result
         success = response.code == 200
         if not success:
-            error_str = "%s : %s" % (response.code, response.phrase)
-            logging.error("Unexpected response code: \'%s\', phrase: %s" % (error_str))
+            logging.error("Unexpected response: %s : %s" % (response.code, response.phrase))
         return success
     
     
-    def _getLocationFromHeader(self, result):
+    def _getLocationFromHeader(self, response):
         """
         Extract and return the location of the created item 
         from the 'Location' field in the response header.
         """
-        response, body = result
         if response.code == 201:
             # created ok
             if response.headers.hasHeader("Location"):
@@ -239,7 +224,7 @@ class Client(object):
     # 
     #
     
-    
+    @defer.inlineCallbacks
     def _sendRequest(self, method, url, headers, bodyProducer):
         """
         Send a request to the url, where the method argument defines the kind of request.
@@ -264,13 +249,16 @@ class Client(object):
                                                                         url,
                                                                         str(headers),
                                                                         bodyProducer.length if bodyProducer else 0))
-        d = self.agent.request(method=method,
-                               uri=url,
-                               headers=Headers(dict([(k, [v]) for k,v in headers.items()])),
-                               bodyProducer=bodyProducer)
-        d.addCallback(self._handleResponseHeader, url)
-        d.addErrback(self._handleRequestFailure, url)
-        return d        
+        try:
+            response = yield self.agent.request(method=method,
+                                                uri=url,
+                                                headers=Headers(dict([(k, [v]) for k,v in headers.items()])),
+                                                bodyProducer=bodyProducer)
+            (response, responseBody) = yield self._handleResponseHeader(response, url)
+            defer.returnValue((response, responseBody))
+        except Exception, ex:
+            self._handleRequestFailure(ex, url)
+            defer.returnValue(None)
 
 
     def _get(self, url, headers):
@@ -345,7 +333,7 @@ class Client(object):
     # Environments (Feeds)
     #
     
-    
+    @defer.inlineCallbacks
     def list_feeds(self, api_key=None, format=txpachube.DataFormats.JSON, parameters=None):
         """ 
         Returns a paged list of Pachube's feeds that are viewable by 
@@ -449,13 +437,13 @@ class Client(object):
             api_key = self.api_key
             
         headers = {'X-PachubeApiKey': api_key}
+    
+        (response, responseBody) = yield self._get(url, headers)
+        dataStructure = self._convertToPachubeStructure(responseBody, format, txpachube.List_Feeds_Msg)
+        defer.returnValue(dataStructure)
         
-        d = self._get(url, headers)
-        d.addCallback(self._getResponseBody)
-        d.addCallback(self._convertToPachubeStructure, format, txpachube.List_Feeds_Msg)
-        return d
-        
-        
+    
+    @defer.inlineCallbacks  
     def create_feed(self, api_key=None, format=txpachube.DataFormats.JSON, data=None):
         """ 
         Creates a new feed.
@@ -473,15 +461,6 @@ class Client(object):
         If api_key argument is not set when calling this method then the
         value set during this object's instantiation (ie. in __init__) is used.
         """
-        
-        def getFeedIdFromLocation(location):
-            """
-            Extract and return the new feed id from the 'Location' field in the response header.
-            """
-            feed_id = location.split("/")[-1]
-            return feed_id
-                    
-        
         if format == txpachube.DataFormats.CSV:
             raise Exception("CSV format is not supported for creating feeds")
         
@@ -491,13 +470,15 @@ class Client(object):
             api_key = self.api_key
             
         headers = {'X-PachubeApiKey': api_key}
-
-        d = self._post(url, headers, data)
-        d.addCallback(self._getLocationFromHeader)
-        d.addCallback(getFeedIdFromLocation)
-        return d
     
+        (response, responseBody) = yield self._post(url, headers, data)
+        location = self._getLocationFromHeader(response)
+        feed_id = location.split("/")[-1]
+        defer.returnValue(feed_id)
     
+        
+    
+    @defer.inlineCallbacks
     def read_feed(self, api_key=None, feed_id=None, format=txpachube.DataFormats.JSON, parameters=None):
         """ 
         Returns the most recent datastreams for environment [feed_id], viewable by the api_key provided
@@ -614,13 +595,13 @@ class Client(object):
             api_key = self.api_key
             
         headers = {'X-PachubeApiKey': api_key}
+
+        (response, responseBody) = yield self._get(url, headers)
+        dataStructure = self._convertToPachubeStructure(responseBody, format, txpachube.View_Feed_Msg)
+        defer.returnValue(dataStructure)
         
-        d = self._get(url, headers)
-        d.addCallback(self._getResponseBody)
-        d.addCallback(self._convertToPachubeStructure, format, txpachube.View_Feed_Msg)
-        return d        
-        
-        
+    
+    @defer.inlineCallbacks    
     def update_feed(self, api_key=None, feed_id=None, format=txpachube.DataFormats.JSON, data=None):
         """
         Updates [environment ID]'s environment and datastreams. If successful, the 
@@ -654,11 +635,12 @@ class Client(object):
             
         headers = {'X-PachubeApiKey': api_key}
 
-        d = self._put(url, headers, data)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d
+        (response, responseBody) = yield self._put(url, headers, data)
+        response_code = self._getResponseCodeStatusFromHeader(response)
+        defer.returnValue(response_code)
 
-
+    
+    @defer.inlineCallbacks
     def delete_feed(self, api_key=None, feed_id=None):
         """
         The DELETE request does not require a format to be used. A request made to 
@@ -685,18 +667,18 @@ class Client(object):
         if api_key is None:
             api_key = self.api_key
             
-        headers = {'X-PachubeApiKey': api_key,
-                   'Content-Type' : self._getContentType(format)}
-
-        d = self._delete(url, headers)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d
+        headers = {'X-PachubeApiKey': api_key}
+    
+        (response, responseBody) = yield self._delete(url, headers)
+        response_code = self._getResponseCodeStatusFromHeader(response)
+        defer.returnValue(response_code)
 
 
     #
     # Datastreams
     #
     
+    @defer.inlineCallbacks
     def create_datastream(self, api_key=None, feed_id=None, format=txpachube.DataFormats.JSON, data=None):
         """
         Creates new datastream(s) in environment [feed ID]. The body of the request 
@@ -708,11 +690,21 @@ class Client(object):
         @type feed_id: string
         @param format: The format to request the results in [json|xml|csv]
         @type format: string
-        @param data: A representation of the datastream in the appropriate format.
+        @param data: A representation of the datastream to be created. Pachube currently requires 
+                     that the datastream be wrapped in an environment. So the minimum data 
+                     (in JSON format) necessary to create a new datastream is:
+                        {
+                         "version": "1.0.0"
+                         "datastreams": [
+                            {
+                              "id": "test_datastream"
+                            }
+                          ], 
+                        }
         @type data: string
         
-        @return: A deferred that returns the success of the create based on
-                 the response header data. 
+        @return: A deferred that returns the datastream_id of the created datastream
+                 or None. 
         @rtype: boolean
         
         If api_key or feed_id arguments are not set when calling this method then the
@@ -728,11 +720,13 @@ class Client(object):
             
         headers = {'X-PachubeApiKey': api_key}
 
-        d = self._post(url, headers, data)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d
-           
-        
+        (response, responseBody) = yield self._post(url, headers, data)
+        location = self._getLocationFromHeader(response)
+        datastream_id = location.split("/")[-1]
+        defer.returnValue(datastream_id)
+                           
+    
+    @defer.inlineCallbacks
     def read_datastream(self, api_key=None, feed_id=None, datastream_id=None, format=txpachube.DataFormats.JSON, parameters=None): 
         """
         Read the requested datastream.
@@ -748,9 +742,8 @@ class Client(object):
         @param parameters: Additional parameters to configure the png output.
         @type parameters: dict
 
-        @return: A deferred that returns the response body which is the feed
-                 (environment) with on the requested datastream
-        @rtype: string (in the format specified by the format argument)
+        @return: A deferred that returns a txpachube.Datastream object or None
+        @rtype: txpachube.Datastream
             
             
         Available settings for parameters supporting historical queries:  
@@ -857,13 +850,16 @@ class Client(object):
             api_key = self.api_key
             
         headers = {'X-PachubeApiKey': api_key}
-        
-        d = self._get(url, headers, )
-        d.addCallback(self._getResponseBody)
-        d.addCallback(self._convertToPachubeStructure, format, txpachube.View_Datastream_Msg)
-        return d
-         
-        
+
+        (response, responseBody) = yield self._get(url, headers)
+        if format == txpachube.DataFormats.PNG:
+            defer.returnValue(responseBody)
+        else:
+            dataStructure = self._convertToPachubeStructure(responseBody, format, txpachube.View_Datastream_Msg)
+            defer.returnValue(dataStructure)
+                 
+    
+    @defer.inlineCallbacks    
     def update_datastream(self, api_key=None, feed_id=None, datastream_id=None, format=txpachube.DataFormats.JSON, data=None):
         """
         Update a single datastream
@@ -894,13 +890,14 @@ class Client(object):
         if api_key is None:
             api_key = self.api_key
             
-        headers = {'X-PachubeApiKey': api_key}
+        headers = {'X-PachubeApiKey': api_key}      
 
-        d = self._put(url, headers, data)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d        
-        
-        
+        (response, responseBody) = yield self._put(url, headers, data)
+        response_code = self._getResponseCodeStatusFromHeader(response)
+        defer.returnValue(response_code)
+                
+    
+    @defer.inlineCallbacks   
     def delete_datastream(self, api_key=None, feed_id=None, datastream_id=None): 
         """
         The DELETE request does not require a format to be used. A request made to 
@@ -914,8 +911,7 @@ class Client(object):
         @param datastream_id: A datastream identifier
         @type datastream_id: string
         
-        @return: A deferred that returns the success of the delete based on
-                 the response header data. 
+        @return: A deferred that returns the success status of the datastream delete. 
         @rtype: boolean
 
         If api_key or feed_id arguments are not set when calling this method then the
@@ -931,16 +927,16 @@ class Client(object):
             
         headers = {'X-PachubeApiKey': api_key}
 
-        d = self._delete(url, headers)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d
-    
+        (response, responseBody) = yield self._delete(url, headers)
+        response_code = self._getResponseCodeStatusFromHeader(response)
+        defer.returnValue(response_code)
+            
     
     #    
     # Datapoints
     #
     
-    
+    @defer.inlineCallbacks
     def create_datapoints(self, api_key=None, feed_id=None, datastream_id=None, format=txpachube.DataFormats.JSON, data=None):
         """
         Creates new datapoints for datastream. The body of the request 
@@ -969,8 +965,7 @@ class Client(object):
         @param data: A representation of the datastream in the appropriate format.
         @type data: string
         
-        @return: A deferred that returns the success of the create based on
-                 the response header data. 
+        @return: A deferred that returns the success status of the create action. 
         @rtype: boolean
         
         If api_key or feed_id arguments are not set when calling this method then the
@@ -986,11 +981,12 @@ class Client(object):
             
         headers = {'X-PachubeApiKey': api_key}
 
-        d = self._post(url, headers, data)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d
+        (response, responseBody) = yield self._post(url, headers, data)
+        response_code = self._getResponseCodeStatusFromHeader(response)
+        defer.returnValue(response_code)
+            
     
-    
+    @defer.inlineCallbacks
     def read_datapoint(self, api_key=None, feed_id=None, datastream_id=None, format=txpachube.DataFormats.JSON, timestamp=None): 
         """
         Read a specific datapoint from the specified timestamp.
@@ -1003,11 +999,13 @@ class Client(object):
         @type datastream_id: string
         @param format: The format to request the results in [json|xml|csv|png]
         @type format: string
-        @param timestamp: An ISO8601 formatted datapoint timestamp
+        @param timestamp: An ISO8601 formatted datapoint timestamp. Examples:
+                          2012-02-22T11:22:31Z
+                          2012-02-22T11:22:31.130138Z
+                          2012-02-22T11:22:31.130138+09:30
         @type timestamp: string
 
-        @return: A deferred that returns the response body which is the datapoint
-                 details at the specified timestamp
+        @return: A deferred that returns the a txpachube.Datapoint object or None
         @rtype: string (in the format specified by the format argument)
         
         If api_key or feed_id arguments are not set when calling this method then the
@@ -1023,13 +1021,18 @@ class Client(object):
             api_key = self.api_key
             
         headers = {'X-PachubeApiKey': api_key}
-        
-        d = self._get(url, headers)
-        d.addCallback(self._getResponseBody)
-        d.addCallback(self._convertToPachubeStructure, format, txpachube.View_Datapoint_Msg)
-        return d
+
+        (response, responseBody) = yield self._get(url, headers)
+
+        if "Not found" in responseBody:
+            # the specified datapoint could not be found
+            logging.info("The specified datapoint [%s] could not be found" % timestamp)
+            defer.returnValue(None)
+        dataStructure = self._convertToPachubeStructure(responseBody, format, txpachube.View_Datapoint_Msg)
+        defer.returnValue(dataStructure)
+            
     
-    
+    @defer.inlineCallbacks
     def update_datapoint(self, api_key=None, feed_id=None, datastream_id=None, format=txpachube.DataFormats.JSON, timestamp=None, data=None):
         """
         Modify the value of a datapoint at the specified timestamp
@@ -1042,13 +1045,15 @@ class Client(object):
         @type datastream_id: string
         @param format: The format to request the results in [json|xml|csv|png]
         @type format: string
-        @param timestamp: An ISO8601 formatted datapoint timestamp
+        @param timestamp: An ISO8601 formatted datapoint timestamp. Examples:
+                          2012-02-22T11:22:31Z
+                          2012-02-22T11:22:31.130138Z
+                          2012-02-22T11:22:31.130138+09:30
         @type timestamp: string
         @param data: A representation of the updated datapoint in the appropriate format.
         @type data: string
         
-        @return: A deferred that returns the success of the create based on
-                 the response header data. 
+        @return: A deferred that returns the success status from updating the datapoint
         @rtype: boolean
         
         If api_key or feed_id arguments are not set when calling this method then the
@@ -1062,13 +1067,14 @@ class Client(object):
         if api_key is None:
             api_key = self.api_key
             
-        headers = {'X-PachubeApiKey': api_key}
+        headers = {'X-PachubeApiKey': api_key}       
 
-        d = self._put(url, headers, data)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d        
+        (response, responseBody) = yield self._put(url, headers, data)
+        response_code = self._getResponseCodeStatusFromHeader(response)
+        defer.returnValue(response_code)
+        
     
-
+    @defer.inlineCallbacks
     def delete_datapoint(self, api_key=None, feed_id=None, datastream_id=None, timestamp=None):
         """
         Delete a single datapoint at the specified timestamp.
@@ -1080,7 +1086,10 @@ class Client(object):
         @type feed_id: string
         @param datastream_id: A datastream identifier
         @type datastream_id: string
-        @param timestamp: An ISO8601 formatted datapoint timestamp
+        @param timestamp: An ISO8601 formatted datapoint timestamp. Examples:
+                          2012-02-22T11:22:31Z
+                          2012-02-22T11:22:31.130138Z
+                          2012-02-22T11:22:31.130138+09:30
         @type parameters: string
 
         @return: A deferred that returns the success of the create based on
@@ -1100,11 +1109,12 @@ class Client(object):
             
         headers = {'X-PachubeApiKey': api_key}
 
-        d = self._delete(url, headers)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d
+        (response, responseBody) = yield self._delete(url, headers)
+        response_code = self._getResponseCodeStatusFromHeader(response)
+        defer.returnValue(response_code)
+            
     
-        
+    @defer.inlineCallbacks    
     def delete_datapoints(self, api_key=None, feed_id=None, datastream_id=None, parameters=None): 
         """
         Remove a range of datapoints for this datastream.
@@ -1172,16 +1182,16 @@ class Client(object):
             
         headers = {'X-PachubeApiKey': api_key}
 
-        d = self._delete(url, headers)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d
-    
+        (response, responseBody) = yield self._delete(url, headers)
+        response_code = self._getResponseCodeStatusFromHeader(response)
+        defer.returnValue(response_code)
+            
            
     #
     # Triggers
     #
     
-    
+    @defer.inlineCallbacks
     def list_triggers(self, api_key=None, format=txpachube.DataFormats.JSON):
         """ 
         Retrieve a list of all triggers for the authenticated account
@@ -1205,19 +1215,19 @@ class Client(object):
             
         headers = {'X-PachubeApiKey': api_key}
 
-        d = self._get(url, headers)
-        d.addCallback(self._getResponseBody)
-        d.addCallback(self._convertToPachubeStructure, format, txpachube.List_Triggers_Msg)
-        return d        
-            
+        (response, responseBody) = yield self._get(url, headers)
+        dataStructure = self._convertToPachubeStructure(responseBody, format, txpachube.List_Triggers_Msg)
+        defer.returnValue(dataStructure)
         
+                    
+    @defer.inlineCallbacks    
     def create_trigger(self, api_key=None, format=txpachube.DataFormats.JSON, data=None):
         """
         Create a trigger
 
         @param api_key: An api key with authorization settings allowing this action to be performed
         @type api_key: string
-        @param format: The format to request the results in [json|xml|csv|png]
+        @param format: The format to request the results in [json|xml|csv]
         @type format: string
         @param data: Trigger definition in the appropriate format.
         @type data: string
@@ -1228,27 +1238,21 @@ class Client(object):
         If api_key argument is not set when calling this method then the default value
         set during this object's instantiation (ie. in __init__) is used.        
         
-        """
-        def getTriggerIdFromLocation(location):
-            """
-            Extract and return the new trigger id from the 'Location' field in the response header.
-            """
-            trigger_id = location.split("/")[-1]
-            return trigger_id
-                    
+        """       
         url = "%s/triggers.%s" % (self.api_url, format)
         
         if api_key is None:
             api_key = self.api_key
             
         headers = {'X-PachubeApiKey': api_key}
-               
-        d = self._post(url, headers, data)
-        d.addCallback(self._getLocationFromHeader)
-        d.addCallback(getTriggerIdFromLocation)
-        return d        
+
+        (response, responseBody) = yield self._post(url, headers, data)
+        location = self._getLocationFromHeader(response)
+        trigger_id = location.split("/")[-1]
+        defer.returnValue(trigger_id)     
         
-        
+    
+    @defer.inlineCallbacks    
     def read_trigger(self, api_key=None, trigger_id=None, format=txpachube.DataFormats.JSON):
         """ 
         Returns a representation of a trigger 
@@ -1259,12 +1263,8 @@ class Client(object):
         @type trigger_id: string
         @param format: The format to request the results in [json|xml]
         @type format: string
-        @param parameters: Additional parameters to configure the search query.
-        @type parameters: dict
         
-        @return: A deferred that returns the response body which contains
-                 the representation of a trigger in the format specified 
-                 by the format argument.
+        @return: A deferred that returns a taxpachube.Trigger object or None.
         @rtype: string
         
         If api_key argument is not set when calling this method then the default value
@@ -1276,13 +1276,13 @@ class Client(object):
             api_key = self.api_key
             
         headers = {'X-PachubeApiKey': api_key}
-        
-        d = self._get(url, headers)
-        d.addCallback(self._getResponseBody)
-        d.addCallback(self._convertToPachubeStructure, format, txpachube.View_Trigger_Msg)
-        return d        
-        
-        
+
+        (response, responseBody) = yield self._get(url, headers)        
+        dataStructure = self._convertToPachubeStructure(responseBody, format, txpachube.View_Trigger_Msg)
+        defer.returnValue(dataStructure)
+                
+    
+    @defer.inlineCallbacks    
     def update_trigger(self, api_key=None, trigger_id=None, format=txpachube.DataFormats.JSON, data=None):
         """
         Updates an existing trigger object. 
@@ -1296,8 +1296,7 @@ class Client(object):
         @param data: A representation of the trigger in the appropriate format.
         @type data: string
         
-        @return: A deferred that returns the success of the update based on
-                 the response header data. 
+        @return: A deferred that returns the success status of the update action. 
         @rtype: boolean
 
         If api_key argument is not set when calling this method then the default value
@@ -1310,11 +1309,12 @@ class Client(object):
             
         headers = {'X-PachubeApiKey': api_key}
 
-        d = self._put(url, headers, data)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d
-    
-    
+        (response, responseBody) = yield self._put(url, headers, data)
+        response_code = self._getResponseCodeStatusFromHeader(response)
+        defer.returnValue(response_code)
+        
+
+    @defer.inlineCallbacks
     def delete_trigger(self, api_key=None, trigger_id=None):
         """
         Delete a trigger.
@@ -1325,25 +1325,22 @@ class Client(object):
         @param trigger_id: The trigger identifier
         @type trigger_id: string
         
-        @return: A deferred that returns the success of the delete based on
-                 the response header data. 
+        @return: A deferred that returns the success status of the delete action. 
         @rtype: boolean
 
         If api_key argument is not set when calling this method then the default value
         set during this object's instantiation (ie. in __init__) is used.      
-        """
-
-                    
-        url = "%s/triggers/%s.%s" % (self.api_url, trigger_id, format)
+        """           
+        url = "%s/triggers/%s" % (self.api_url, trigger_id)
         
         if api_key is None:
             api_key = self.api_key
             
         headers = {'X-PachubeApiKey': api_key}
 
-        d = self._delete(url, headers)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d    
+        (response, responseBody) = yield self._delete(url, headers)
+        response_code = self._getResponseCodeStatusFromHeader(response)
+        defer.returnValue(response_code)    
     
     
     #
@@ -1351,6 +1348,7 @@ class Client(object):
     #
     
     
+    @defer.inlineCallbacks
     def list_users(self, api_key=None, format=txpachube.DataFormats.JSON):
         """ 
         Retrieve a list of all users for the authenticated account
@@ -1374,50 +1372,43 @@ class Client(object):
             
         headers = {'X-PachubeApiKey': api_key}
 
-        d = self._get(url, headers)
-        d.addCallback(self._getResponseBody)
-        d.addCallback(self._convertToPachubeStructure, format, txpachube.List_Users_Msg)
-        return d 
+        (response, responseBody) = yield self._get(url, headers)
+        dataStructure = self._convertToPachubeStructure(responseBody, format, txpachube.List_Users_Msg)
+        defer.returnValue(dataStructure)
+            
     
-    
+    @defer.inlineCallbacks
     def create_user(self, api_key=None, format=txpachube.DataFormats.JSON, data=None):
         """
         Create a user
 
         @param api_key: An api key with authorization settings allowing this action to be performed
         @type api_key: string
-        @param format: The format to request the results in [json|xml|csv|png]
+        @param format: The format to request the results in [json|xml|csv]
         @type format: string
         @param data: User definition in the appropriate format.
         @type data: string
         
-        @return: A deferred that returns the success of the create user based on
-                 the response header data. 
+        @return: A deferred that returns the user id of the created user or None. 
         @rtype: boolean
         
         If api_key argument is not set when calling this method then the default value
         set during this object's instantiation (ie. in __init__) is used.        
-        
-        """
-        def getTriggerIdFromLocation(location):
-            """
-            Extract and return the new trigger id from the 'Location' field in the response header.
-            """
-            trigger_id = location.split("/")[-1]
-            return trigger_id
-                    
+        """      
         url = "%s/users.%s" % (self.api_url, format)
         
         if api_key is None:
             api_key = self.api_key
             
         headers = {'X-PachubeApiKey': api_key}
-               
-        d = self._post(url, headers, data)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d
+
+        (response, responseBody) = yield self._post(url, headers, data)
+        location = self._getLocationFromHeader(response)
+        new_user = location.split("/")[-1]
+        defer.returnValue(new_user)
+
     
-    
+    @defer.inlineCallbacks
     def read_user(self, api_key=None, user_id=None, format=txpachube.DataFormats.JSON):
         """ 
         Returns the details of a specific user 
@@ -1429,9 +1420,7 @@ class Client(object):
         @param format: The format to request the results in [json|xml]
         @type format: string
         
-        @return: A deferred that returns the response body which contains
-                 the details of a user in the format specified 
-                 by the format argument.
+        @return: A deferred that returns a txpachube.User object or None
         @rtype: string
         
         If api_key argument is not set when calling this method then the default value
@@ -1443,13 +1432,13 @@ class Client(object):
             api_key = self.api_key
             
         headers = {'X-PachubeApiKey': api_key}
+
+        (response, responseBody) = yield self._get(url, headers)
+        dataStructure = self._convertToPachubeStructure(responseBody, format, txpachube.View_User_Msg)
+        defer.returnValue(dataStructure)
         
-        d = self._get(url, headers)
-        d.addCallback(self._getResponseBody)
-        d.addCallback(self._convertToPachubeStructure, format, txpachube.View_User_Msg)
-        return d 
     
-    
+    @defer.inlineCallbacks
     def update_user(self, api_key=None, user_id=None, format=txpachube.DataFormats.JSON, data=None):
         """
         Updates details of an existing user object. 
@@ -1463,8 +1452,7 @@ class Client(object):
         @param data: Details of the user in the appropriate format.
         @type data: string
         
-        @return: A deferred that returns the success of the update based on
-                 the response header data. 
+        @return: A deferred that returns the success status of the update user action. 
         @rtype: boolean
 
         If api_key argument is not set when calling this method then the default value
@@ -1477,11 +1465,12 @@ class Client(object):
             
         headers = {'X-PachubeApiKey': api_key}
 
-        d = self._put(url, headers, data)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d
+        (response, responseBody) = yield self._put(url, headers, data)
+        response_code = self._getResponseCodeStatusFromHeader(response)
+        defer.returnValue(response_code)    
     
-    
+
+    @defer.inlineCallbacks
     def delete_user(self, api_key=None, user_id=None):
         """
         Delete a user.
@@ -1492,8 +1481,7 @@ class Client(object):
         @param user_id: The user identifier
         @type user_id: string
         
-        @return: A deferred that returns the success of the delete based on
-                 the response header data. 
+        @return: A deferred that returns the success status of the delete user action. 
         @rtype: boolean
 
         If api_key argument is not set when calling this method then the default value
@@ -1506,16 +1494,17 @@ class Client(object):
             
         headers = {'X-PachubeApiKey': api_key}
 
-        d = self._delete(url, headers)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d
-    
+        (response, responseBody) = yield self._delete(url, headers)
+        response_code = self._getResponseCodeStatusFromHeader(response)
+        defer.returnValue(response_code)
+        
     
     #    
     # API Keys
     #
     
     
+    @defer.inlineCallbacks
     def list_api_keys(self, api_key=None, format=txpachube.DataFormats.JSON):
         """ 
         Retrieve a list of all keys for the authenticated account.
@@ -1538,13 +1527,12 @@ class Client(object):
             
         headers = {'X-PachubeApiKey': api_key}
 
-        d = self._get(url, headers)
-        d.addCallback(self._getResponseBody)
-        if format == txpachube.DataFormats.JSON:
-            d.addCallback(self._convertJsonToDict)
-        return d
+        (response, responseBody) = yield self._get(url, headers)
+        dataStructure = self._convertToPachubeStructure(responseBody, format, txpachube.List_Keys_Msg)
+        defer.returnValue(dataStructure)    
     
     
+    @defer.inlineCallbacks
     def create_api_key(self, api_key=None, format=txpachube.DataFormats.JSON, data=None):
         """
         Create a new API key
@@ -1556,33 +1544,27 @@ class Client(object):
         @param data: key definition in the appropriate format.
         @type data: string
         
-        @return: A deferred that returns the API Key of the created key. 
+        @return: A deferred that returns the api key of the new key. 
         @rtype: string
         
         If api_key argument is not set when calling this method then the default value
         set during this object's instantiation (ie. in __init__) is used.        
         
-        """
-        def getApiKey(d):
-            """
-            Extract and return the new api_key from the response body.
-            """
-            return d[Pachube.Key][Pachube.Api_Key]
-                    
+        """         
         url = "%s/keys.%s" % (self.api_url, format)
         
         if api_key is None:
             api_key = self.api_key
             
         headers = {'X-PachubeApiKey': api_key}
-               
-        d = self._post(url, headers, data)
-        d.addCallback(self._getResponseBody)
-        if format == txpachube.DataFormats.JSON:
-            d.addCallback(self._convertJsonToDict)
-        return d
-    
-    
+
+        (response, responseBody) = yield self._post(url, headers, data)
+        location = self._getLocationFromHeader(response)
+        new_api_key = location.split("/")[-1]
+        defer.returnValue(new_api_key)
+
+
+    @defer.inlineCallbacks
     def read_api_key(self, api_key=None, key_id=None, format=txpachube.DataFormats.JSON):
         """ 
         Returns the details of a specific API Key 
@@ -1594,9 +1576,7 @@ class Client(object):
         @param format: The format to request the results in [json|xml]
         @type format: string
         
-        @return: A deferred that returns the response body which contains
-                 the details of a API key in the format specified 
-                 by the format argument.
+        @return: A deferred that returns a txpachube.Key object or None
         @rtype: string
         
         If api_key argument is not set when calling this method then the default value
@@ -1608,14 +1588,13 @@ class Client(object):
             api_key = self.api_key
             
         headers = {'X-PachubeApiKey': api_key}
-        
-        d = self._get(url, headers)
-        d.addCallback(self._getResponseBody)
-        if format == txpachube.DataFormats.JSON:
-            d.addCallback(self._convertJsonToDict)
-        return d 
+
+        (response, responseBody) = yield self._get(url, headers)
+        dataStructure = self._convertToPachubeStructure(responseBody, format, txpachube.View_Key_Msg)
+        defer.returnValue(dataStructure)
+            
     
-    
+    @defer.inlineCallbacks
     def delete_api_key(self, api_key=None, key_id=None):
         """
         Delete a API key.
@@ -1632,17 +1611,16 @@ class Client(object):
         If api_key argument is not set when calling this method then the default value
         set during this object's instantiation (ie. in __init__) is used.      
         """
-        url = "%s/keys/%s.%s" % (self.api_url, key_id, format)
+        url = "%s/keys/%s" % (self.api_url, key_id)
         
         if api_key is None:
             api_key = self.api_key
             
         headers = {'X-PachubeApiKey': api_key}
 
-        d = self._delete(url, headers)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d
-
+        (response, responseBody) = yield self._delete(url, headers)
+        response_code = self._getResponseCodeStatusFromHeader(response)
+        defer.returnValue(response_code)
 
 
 
@@ -1946,8 +1924,8 @@ class PAWSClient(object):
     def _getResponseBody(self, response):
         """
         Most responses need to deliver the response body data. Some need
-        to return data from the header only. This method provides the 
-        ability to return only the response body data.
+        to return data from the header only. This method returns just the 
+        response body data.
         """
         return response['body']
     
@@ -2002,7 +1980,6 @@ class PAWSClient(object):
     #
     
 
-    
     def _sendRequest(self, method, resource, parameters=None, body=None, token=None):
         """
         Send a request to the url, where the method argument defines the kind of request.
@@ -2017,8 +1994,7 @@ class PAWSClient(object):
         @type headers: dict
         @param body: THe content used for the request body data.
         
-        @return:  A deferred that returns a result tuple containing the response,
-        and the response body.
+        @return:  A deferred that returns a the response.
         @rtype: twisted.internet.defer.Deferred        
         """
 
@@ -2038,11 +2014,11 @@ class PAWSClient(object):
         
         if self.connected:
             self.factory.send(json.dumps(message))
-            d = defer.Deferred()
-            self.pendingResponses[token] = d
-            return d
+            self.pendingResponses[token] = defer.Deferred()
+            return self.pendingResponses[token]
         else:
             logging.error("Send failed, no connection exists")
+            
 
 
     def _get(self, resource, parameters=None):
@@ -2052,8 +2028,7 @@ class PAWSClient(object):
         @param resource: The resource used during the request
         @type resource: string
 
-        @return:  A deferred that returns a result tuple containing the response,
-        and the response body.
+        @return:  A deferred that returns the response.
         @rtype: twisted.internet.defer.Deferred
         """
         return self._sendRequest("get", resource)
@@ -2068,8 +2043,7 @@ class PAWSClient(object):
         @param body: The content that forms the body of the request.
         @type body: string
 
-        @return:  A deferred that returns a result tuple containing the response,
-        and the response body.
+        @return:  A deferred that returns the response.
         @rtype: twisted.internet.defer.Deferred
         """
         return self._sendRequest("put", resource, body=data)
@@ -2084,8 +2058,7 @@ class PAWSClient(object):
         @param body: The content that forms the body of the request.
         @type body: string
 
-        @return:  A deferred that returns a result tuple containing the response,
-        and the response body.
+        @return:  A deferred that returns the response.
         @rtype: twisted.internet.defer.Deferred
         """
         return self._sendRequest("post", resource, body)       
@@ -2098,13 +2071,13 @@ class PAWSClient(object):
         @param resource: The resource used during the request
         @type resource: string
 
-        @return:  A deferred that returns a result tuple containing the response,
-        and the response body.
+        @return:  A deferred that returns the response.
         @rtype: twisted.internet.defer.Deferred
         """
         return self._sendRequest("delete", resource)        
-        
-        
+    
+    
+    @defer.inlineCallbacks
     def _subscribe(self, resource):
         """ 
         Perform a subscribe at the specified url
@@ -2112,13 +2085,13 @@ class PAWSClient(object):
         @param resource: The resource used during the request
         @type resource: string
 
-        @return: A tuple contains the token used for subscription and
-                 a deferred that returns a result of the subscribe
-                 response. The token is needed later to unsubscribe.
-        @rtype: string
+        @return: A tuple containing the token used for subscription and
+                 the result of the subscribe response. The token is needed 
+                 later to unsubscribe.
+        @rtype: tuple
         """
         token = self._generateToken()
-        d = self._sendRequest("subscribe", resource, token=token)
+        response = yield self._sendRequest("subscribe", resource, token=token)
         # _sendRequest returns a deferred allowing the caller to chain
         # up processing actions to be called when the resposne arrives.
         # By default _sendRequest add this deferred to a pendingResponses 
@@ -2132,11 +2105,12 @@ class PAWSClient(object):
         # callback handlers for subscrription messages.
         # However, by default we still end up with an entry in the 
         # pendingResponses dict. Conveniently each subscribe/unsubscribe 
-        # request is responded to with an acknomlwedge response. Processing
+        # request is responded to with an acknomledge response. Processing
         # this message results in the identical token in the pendingResponses
         # being removed. All good.
-        return (token, d)
-    
+        result = (token, response)
+        defer.returnValue(result)
+        
 
     def _unsubscribe(self, resource, token):
         """ 
@@ -2159,6 +2133,7 @@ class PAWSClient(object):
     #
     
     
+    @defer.inlineCallbacks
     def list_feeds(self, parameters=None):
         """ 
         Returns a paged list of Pachube's feeds that are viewable by 
@@ -2245,12 +2220,13 @@ class PAWSClient(object):
             distance_units=miles        
         
         """
-        d = self._get("/feeds", parameters)
-        d.addCallback(self._getResponseBody)
-        d.addCallback(self._convertToPachubeStructure, txpachube.List_Feeds_Msg)
-        return d
+        response = yield self._get("/feeds", parameters)
+        body = self._getResponseBody(response)
+        dataStructure = self._convertToPachubeStructure(body, txpachube.List_Feeds_Msg)
+        defer.returnValue(dataStructure)   
     
 
+    @defer.inlineCallbacks
     def create_feed(self, data=None):
         """ 
         Creates a new feed.
@@ -2262,21 +2238,13 @@ class PAWSClient(object):
         @rtype: string
 
         """
-        
-        def getFeedIdFromLocation(location):
-            """
-            Extract and return the new feed id from the 'Location' field in the response header.
-            """
-            feed_id = location.split("/")[-1]
-            return feed_id
-
-
-        d = self._post('/feeds', data)
-        d.addCallback(self._getLocationFromHeader)
-        d.addCallback(getFeedIdFromLocation)
-        return d
+        response = yield self._post('/feeds', data)
+        location = self._getLocationFromHeader(response)
+        feed_id = location.split("/")[-1]
+        defer.returnValue(feed_id)    
     
     
+    @defer.inlineCallbacks
     def read_feed(self, feed_id, parameters=None):
         """ 
         Returns the most recent datastreams for environment [feed_id], viewable by the api_key provided
@@ -2373,12 +2341,13 @@ class PAWSClient(object):
                 86400    One snapshot per day             1 year
         """
         resource = '/feeds/%s' % feed_id
-        d = self._get(resource, parameters)
-        d.addCallback(self._getResponseBody)
-        d.addCallback(self._convertToPachubeStructure, txpachube.View_Feed_Msg)
-        return d    
+        response = yield self._get(resource, parameters)
+        body = self._getResponseBody(response)
+        dataStructure = self._convertToPachubeStructure(body, txpachube.View_Feed_Msg)
+        defer.returnValue(dataStructure)       
     
     
+    @defer.inlineCallbacks
     def update_feed(self, feed_id, data=None):
         """
         Updates [environment ID]'s environment and datastreams. If successful, the 
@@ -2396,11 +2365,12 @@ class PAWSClient(object):
         @rtype: boolean                
         """
         resource = '/feeds/%s' % feed_id
-        d = self._put(resource, data)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d
+        response = yield self._put(resource, data)
+        status_code = self._getResponseCodeStatusFromHeader(response)
+        defer.returnValue(status_code)    
+    
 
-
+    @defer.inlineCallbacks
     def delete_feed(self, feed_id):
         """
         The DELETE request does not require a format to be used. A request made to 
@@ -2415,15 +2385,17 @@ class PAWSClient(object):
         @rtype: boolean     
         """
         resource = '/feeds/%s' % feed_id
-        d = self._delete(resource)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d
+        response = yield self._delete(resource)
+        status_code = self._getResponseCodeStatusFromHeader(response)
+        defer.returnValue(status_code)
 
 
     #
     # Datastreams
     #
     
+    
+    @defer.inlineCallbacks
     def create_datastream(self, feed_id, datastream_id, data=None):
         """
         Creates new datastream(s) in environment [feed ID]. The body of the request 
@@ -2433,18 +2405,30 @@ class PAWSClient(object):
         @type feed_id: string
         @param datastream_id: A datastream identifier
         @type datastream_id: string
-        @param data: A representation of the datastream in the appropriate format.
+        @param data: A representation of the datastream to be created. Pachube currently requires 
+                     that the datastream be wrapped in an environment. So the minimum data 
+                     (in JSON format) necessary to create a new datastream is:
+                        {
+                         "version": "1.0.0"
+                         "datastreams": [
+                            {
+                              "id": "test_datastream"
+                            }
+                          ], 
+                        }
         @type data: string
         
-        @return: A deferred that returns the location of the feed created.
+        @return: A deferred that returns the location of the datastream created.
         @rtype: boolean
         """
         resource = '/feeds/%s/datastreams/%s' % (feed_id, datastream_id)
-        d = self._post(resource, data)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d
-           
-        
+        response = yield self._post(resource, data)
+        location = self._getLocationFromHeader(response)
+        datastream_id = location.split("/")[-1]
+        defer.returnValue(datastream_id)
+            
+    
+    @defer.inlineCallbacks    
     def read_datastream(self, feed_id, datastream_id, parameters=None): 
         """
         Read the requested datastream.
@@ -2456,8 +2440,7 @@ class PAWSClient(object):
         @param parameters: Additional parameters to configure the png output.
         @type parameters: dict
 
-        @return: A deferred that returns the datastream which is the feed
-                 (environment) with on the requested datastream
+        @return: A deferred that returns a txpachube.Datastream object or None.
         @rtype: txpachube.Datastream
             
             
@@ -2553,12 +2536,13 @@ class PAWSClient(object):
         values set during this object's instantiation (ie. in __init__) are used.
         """
         resource = '/feeds/%s/datastreams/%s' % (feed_id, datastream_id)
-        d = self._get(resource, parameters)
-        d.addCallback(self._getResponseBody)
-        d.addCallback(self._convertToPachubeStructure, txpachube.View_Datastream_Msg)
-        return d
-         
-        
+        response = yield self._get(resource, parameters)
+        body = self._getResponseBody(response)
+        dataStructure = self._convertToPachubeStructure(body, txpachube.View_Datastream_Msg)
+        defer.returnValue(dataStructure)
+             
+    
+    @defer.inlineCallbacks    
     def update_datastream(self, feed_id, datastream_id, data):
         """
         Update a single datastream
@@ -2572,16 +2556,16 @@ class PAWSClient(object):
         @param data: A representation of the datastream in the appropriate format.
         @type data: string
         
-        @return: A deferred that returns the success of the create based on
-                 the response header data. 
+        @return: A deferred that returns the success status of the update. 
         @rtype: boolean        
         """
         resource = '/feeds/%s/datastreams/%s' % (feed_id, datastream_id)
-        d = self._put(resource, data)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d        
+        response = yield self._put(resource, data)
+        status_code = self._getResponseCodeStatusFromHeader(response)
+        defer.returnValue(status_code)
+            
         
-        
+    @defer.inlineCallbacks    
     def delete_datastream(self, feed_id, datastream_id): 
         """
         The DELETE request does not require a format to be used. A request made to 
@@ -2593,17 +2577,16 @@ class PAWSClient(object):
         @param datastream_id: A datastream identifier
         @type datastream_id: string
         
-        @return: A deferred that returns the success of the delete based on
-                 the response header data. 
+        @return: A deferred that returns the success status of the delete. 
         @rtype: boolean      
         """
         resource = '/feeds/%s/datastreams/%s' % (feed_id, datastream_id)
-        d = self._delete(resource)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d
+        response = yield self._delete(resource)
+        status_code = self._getResponseCodeStatusFromHeader(response)
+        defer.returnValue(status_code)
 
 
-
+    @defer.inlineCallbacks
     def subscribe(self, resource, subscriptionHandler):
         """
         Subscribe to the resource for updates of changes.
@@ -2625,14 +2608,15 @@ class PAWSClient(object):
             dataStructureClass = txpachube.Datastream
         else:
             dataStructureClass = txpachube.Environment
-        
-        token, d = self._subscribe(resource)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
+
+        (token, response) = yield self._subscribe(resource)
+        response_code = self._getResponseCodeStatusFromHeader(response)
         self.subscriptionHandlers[token] = (subscriptionHandler, dataStructureClass)
-        return token, d
-        
+        result = (token, response_code)
+        defer.returnValue(result)      
     
     
+    @defer.inlineCallbacks
     def unsubscribe(self, resource, token):
         """
         Unsubscribe from receiving update from the specified resource.
@@ -2647,9 +2631,9 @@ class PAWSClient(object):
         """
         if token in self.subscriptionHandlers:
             del self.subscriptionHandlers[token]
-            
-        d = self._unsubscribe(resource, token)
-        d.addCallback(self._getResponseCodeStatusFromHeader)
-        return d
+
+        response = yield self._unsubscribe(resource, token)
+        status_code = self._getResponseCodeStatusFromHeader(response)
+        defer.returnValue(status_code)   
     
     
