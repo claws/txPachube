@@ -306,9 +306,9 @@ whenever the feed/datastream value changes::
 
 	#!/usr/bin/env python 
 	
-	from twisted.internet import reactor
-	import txpachube
-	import txpachube.client
+    from twisted.internet import reactor
+    import txpachube
+    import txpachube.client
 	
     # Paste your Pachube API key here
     API_KEY = ""

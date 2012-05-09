@@ -17,7 +17,7 @@ The data structures support encoding and decoding from JSON/XML formats. These s
 
 
 setup(name='txPachube',
-      version='.'.join(txpachube.version),
+      version='.'.join([str(x) for x in txpachube.version]),
       description='txpachube is a Python wrapper for the v2 Pachube API, based on the Twisted networking framework',
       long_description=long_description,
       author='Chris Laws',
