@@ -685,7 +685,7 @@ class Datastream(DataStructure):
         datastreamDict = dict()
         for attribute in self._attributes:
             attribute_value = getattr(self, attribute, None)
-            if attribute_value:                    
+            if (attribute_value is not None) and (attribute_value != []):                    
                 if attribute == DataFields.Datapoints:
                     datapoints = attribute_value
                     datastreamDict[attribute] = list()
@@ -706,7 +706,7 @@ class Datastream(DataStructure):
         """
         for attribute in self._attributes:
             attribute_value = inDict.get(attribute, None)
-            if attribute_value:
+            if (attribute_value is not None) and (attribute_value != []):                    
                 if attribute == DataFields.Datapoints:
                     if not hasattr(self, DataFields.Datapoints):
                         setattr(self, attribute, list())
