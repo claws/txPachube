@@ -1,26 +1,27 @@
-txpachube
+txpachube (will at some point will be renamed to cosm)
 =========
 
 .. contents::
 
-**txpachube is currently under development**
 
 Introduction
 ------------
 
-txpachube is a Python wrapper for the v2 Pachube `API <http://api.pachube.com/v2/>`_, based on the Twisted networking framework.
+NOTE: Pachube was the old name of Cosm.com. This package continues to work even though it is named after the old site name.
+
+txpachube is a Python package implementing the v2 Cosm/Pachube `API <https://cosm.com/docs/v2/>`_, based on the Twisted networking framework.
 Use txpachube to integrate non blocking access to the Pachube API into your Python Twisted application.
 
 
 Details
 -------
 
-txpachube implements the full v2 Pachube API (Feeds, Datastreams, Datapoints, Triggers, Users, Keys) and many 
+txpachube implements the full v2 Cosm/Pachube API (Feeds, Datastreams, Datapoints, Triggers, Users, Keys) and many 
 of the data structures (Unit, Location, Datapoint, Datastream, Environment, EnvironmentList, Trigger,
 TriggerList Key, KeyList, User, UserList) contained in requests and responses.
 
 The data structures support encoding and decoding from JSON/XML formats. These structures are useful
-when building data to send to Pachube and also for processing Pachube data returned from queries.
+when building data to send to Cosm/Pachube and also for processing Cosm/Pachube data returned from queries.
 
 The txpachube client methods take a data string argument that will be used as the body of the
 message sent to Pachube. How you generate this body data is up to you. You might choose to
@@ -304,8 +305,8 @@ Delete a feed::
 Use the beta PAWS API to subscribe to a feed or datastream and receive updates
 whenever the feed/datastream value changes::
 
-	#!/usr/bin/env python 
-	
+    #!/usr/bin/env python 
+
     from twisted.internet import reactor
     import txpachube
     import txpachube.client
@@ -378,7 +379,7 @@ Example use case scenario::
     
     # This example demonstrates how you could use the txpachube module to
     # help upload sensor data (in this scenario a CurrentCost device) to
-    # Pachube.
+    # Cosm/Pachube.
     # A txpachube.Environment data structure is generated and populated
     # with current value data. All the implemented data structures
     # support encoding to JSON (default) and XML (EEML).
