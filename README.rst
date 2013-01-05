@@ -1,4 +1,4 @@
-txpachube (will at some point will be renamed to cosm)
+txpachube (is now txcosm)
 =========
 
 .. contents::
@@ -7,7 +7,8 @@ txpachube (will at some point will be renamed to cosm)
 Introduction
 ------------
 
-NOTE: Pachube was the old name of Cosm.com. This package continues to work even though it is named after the old site name.
+NOTE: Pachube was the old name of what is now Cosm.com. This package continues to work with Cosm.com even though it is named after the old site name.
+However, no further development is planned in this txpachube package. Instead this repository has been copied and recreated as txcosm to mirror the new Cosm.com site name. Further development on the capability provided by this package will be performed in `txcosm <https://github.com/claws/txcosm>`_
 
 txpachube is a Python package implementing the v2 Cosm/Pachube `API <https://cosm.com/docs/v2/>`_, based on the Twisted networking framework.
 Use txpachube to integrate non blocking access to the Pachube API into your Python Twisted application.
