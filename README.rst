@@ -471,4 +471,5 @@ Todo
   but it should implement everything the standard client supports.
 
 
-[![Analytics](https://ga-beacon.appspot.com/UA-29867375-2/txPachube/readme?pixel)](https://github.com/claws/txPachube)
+.. image:: https://ga-beacon.appspot.com/UA-29867375-2/txPachube/readme?pixel
+   :target: https://github.com/claws/txPachube
