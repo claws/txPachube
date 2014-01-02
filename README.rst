@@ -19,7 +19,7 @@ Use txpachube to integrate non blocking access to the Pachube API into your Pyth
 Details
 -------
 
-txpachube implements the full v2 Cosm/Pachube API (Feeds, Datastreams, Datapoints, Triggers, Users, Keys) and many 
+txpachube implements the full v2 Cosm/Pachube API (Feeds, Datastreams, Datapoints, Triggers, Users, Keys) and many
 of the data structures (Unit, Location, Datapoint, Datastream, Environment, EnvironmentList, Trigger,
 TriggerList Key, KeyList, User, UserList) contained in requests and responses.
 
@@ -30,7 +30,7 @@ The txpachube client methods take a data string argument that will be used as th
 message sent to Pachube. How you generate this body data is up to you. You might choose to
 manually create the data something like this::
 
-    # manually create feed data message body content 
+    # manually create feed data message body content
     feed_data = {"title" : "A Temporary Test Feed",
                  "version" : "1.0.0"}
     json_feed_data = json.dumps(feed_data)
@@ -46,12 +46,12 @@ using these txpachube data structure objects like this::
                   txpachube.DataFields.Version : "1.0.0"}
     environment = txpachube.Environment(**env_kwargs)
     json_feed_data = environment.encode()
-    
+
 Or in a more compact form once you are familiar with a data strcture's valid DataField items::
-    
+
     environment = txpachube.Environment(title="A Temporary Test Feed", version="1.0.0")
     json_feed_data = environment.encode()
-    
+
 txpachube also implements a client that connects to the beta PAWS service. This allows long
 running, persistent, connections to be made to the Pachube service. This type of client is
 useful for applications which require realtime updates on change of status. Such realtime
@@ -75,13 +75,13 @@ Install
 1. Download txpachube archive::
 
     $ git clone git://github.com/claws/txPachube.git
-    
+
 For other download options (zip, tarball) visit the github web page of `txpachube <https://github.com/claws/txPachube>`_
 
 2. Install txpachube module into your Python distribution::
-  
+
     sudo python setup.py install
-    
+
 3. Test::
 
     $ python
@@ -93,11 +93,11 @@ Examples
 --------
 
 These examples require you to have a Pachube account and an appropriately configured
-(permissions set to create, update, read, delete) Pachube API key is required. 
+(permissions set to create, update, read, delete) Pachube API key is required.
 
 List Pachube feeds visible to the API key supplied::
 
-    #!/usr/bin/env python 
+    #!/usr/bin/env python
     # This example demonstrates a request for feeds visible to the
     # supplied API key. It initialises the Client object with a
     # default API key that will be used if no api_key argument is
@@ -121,10 +121,10 @@ List Pachube feeds visible to the API key supplied::
             print "Received feed list content:\n%s\n" % feed_list
         except Exception, ex:
             print "Error listing visible feeds: %s" % str(ex)
-        
+
         reactor.callLater(0.1, reactor.stop)
-        defer.returnValue(True) 
-    
+        defer.returnValue(True)
+
 
     if __name__ == "__main__":
 
@@ -134,13 +134,13 @@ List Pachube feeds visible to the API key supplied::
 
 Create a new feed::
 
-    #!/usr/bin/env python 
+    #!/usr/bin/env python
     # This example demonstrates the ability to create new feeds. It also
-    # shows an API key being passed to the create_feed method directly 
+    # shows an API key being passed to the create_feed method directly
     # as no default key was passed to the Client object initialiser.
     # No format needs to be specified because json is the default format
     # used.
- 
+
     from twisted.internet import reactor, defer
     import txpachube
     import txpachube.client
@@ -151,7 +151,7 @@ Create a new feed::
 
     @defer.inlineCallbacks
     def demo():
-        
+
         client = txpachube.client.Client()
         try:
             environment = txpachube.Environment(title="A Temporary Test Feed", version="1.0.0")
@@ -159,10 +159,10 @@ Create a new feed::
             print "Created new feed with id: %s" % new_feed_id
         except Exception, ex:
             print "Error creating new feed: %s" % str(ex)
-        
+
         reactor.callLater(0.1, reactor.stop)
-        defer.returnValue(True) 
-        
+        defer.returnValue(True)
+
 
     if __name__ == "__main__":
 
@@ -171,15 +171,15 @@ Create a new feed::
 
 
 Update a feed::
-  
-    #!/usr/bin/env python 
+
+    #!/usr/bin/env python
     # This example show how a feed can be updated using your own generated
-    # data, in this case XML data. 
-    # The Client object has been initialised with an API key and a feed id 
-    # so they don't need to be passed to the update_feed method. The format 
-    # argument is JSON by default so it must be explicitly set as this 
+    # data, in this case XML data.
+    # The Client object has been initialised with an API key and a feed id
+    # so they don't need to be passed to the update_feed method. The format
+    # argument is JSON by default so it must be explicitly set as this
     # example is using XML.
- 
+
     from twisted.internet import reactor
     import txpachube
     import txpachube.client
@@ -225,12 +225,12 @@ Update a feed::
         d.addErrback(lambda reason: print "Error updating feed: %s" % str(reason))
         d.addCallback(reactor.stop)
 
-        reactor.run()      
-        
+        reactor.run()
+
 
 Read a feed::
-   
-    #!/usr/bin/env python 
+
+    #!/usr/bin/env python
     # This example demonstrates a request for feed data and uses
     # additional parameters to restrict the datastreams returned.
     # It initialises the Client object with a default API key and
@@ -245,35 +245,35 @@ Read a feed::
 
     # Paste the feed identifier you wish to be read here
     FEED_ID = ""
-    
-    
+
+
     @defer.inlineCallbacks
     def demo():
-        
+
         client = txpachube.client.Client(api_key=API_KEY, feed_id=FEED_ID)
         try:
             feed = yield client.read_feed(parameters={'datastream':'temperature'})
             print "Received feed content:\n%s\n" % feed
         except Exception, ex:
             print "Error reading feed: %s" % str(ex)
-        
+
         reactor.callLater(0.1, reactor.stop)
-        defer.returnValue(True) 
-        
+        defer.returnValue(True)
+
 
     if __name__ == "__main__":
 
         reactor.callWhenRunning(demo)
         reactor.run()
-        
+
 
 
 Delete a feed::
 
-    #!/usr/bin/env python 
+    #!/usr/bin/env python
     # This example demonstrates the ability to delete a feed.
-    # WARNING: This will REALLY delete the feed identifier listed. Make sure it is only a test feed. 
- 
+    # WARNING: This will REALLY delete the feed identifier listed. Make sure it is only a test feed.
+
     from twisted.internet import reactor, defer
     import txpachube.client
 
@@ -286,17 +286,17 @@ Delete a feed::
 
     @defer.inlineCallbacks
     def demo():
-        
+
         client = txpachube.client.Client()
         try:
             feed_delete_status = yield client.delete_feed(api_key=API_KEY, feed_id=FEED_ID)
             print "Deleted feed: %s" % feed_delete_status
         except Exception, ex:
             print "Error deleting feed: %s" % str(ex)
-        
+
         reactor.callLater(0.1, reactor.stop)
-        defer.returnValue(True) 
-        
+        defer.returnValue(True)
+
 
     if __name__ == "__main__":
 
@@ -308,22 +308,22 @@ Delete a feed::
 Use the beta PAWS API to subscribe to a feed or datastream and receive updates
 whenever the feed/datastream value changes::
 
-    #!/usr/bin/env python 
+    #!/usr/bin/env python
 
     from twisted.internet import reactor
     import txpachube
     import txpachube.client
-	
+
     # Paste your Pachube API key here
     API_KEY = ""
 
     # Paste the feed identifier you wish to monitor here
     FEED_ID = ""
-    
-    # Paste a datastream identifier from the feed here if you only want to 
+
+    # Paste a datastream identifier from the feed here if you only want to
     # monitor a particular datastream instead of the whole feed.
     DATASTREAM_ID = ""
-     
+
     #
     # Set up callback handlers
     #
@@ -346,10 +346,10 @@ whenever the feed/datastream value changes::
 
         if connected:
             print "Connected to PAWS service"
-            
+
             def handleSubscribeResponse(status):
                 print "Subscribe response status: %s" % status
-            
+
             print "Subscribing for updates to: %s" % resource
             token, d = client.subscribe(resource, updateHandler)
             print "Subscription token is: %s" % token
@@ -367,19 +367,19 @@ whenever the feed/datastream value changes::
             resource = "/feeds/%s/datastreams/%s" % (FEED_ID, DATASTREAM_ID)
         else:
             resource = "/feeds/%s" % (FEED_ID)
-        
+
         client = txpachube.client.PAWSClient(api_key=API_KEY)
         d = client.connect()
         d.addCallback(do_subscribe, client, resource)
-        reactor.run()        
-        
-        
-        
+        reactor.run()
+
+
+
 
 Example use case scenario::
 
     #!/usr/bin/env python
-    
+
     # This example demonstrates how you could use the txpachube module to
     # help upload sensor data (in this scenario a CurrentCost device) to
     # Cosm/Pachube.
@@ -391,7 +391,7 @@ Example use case scenario::
     # separate txcurrentcost package. If you want to run this script
     # you would need to obtain that package.
     #
-    
+
     from twisted.internet import reactor
     import txpachube
     import txcurrentcost.monitor
@@ -404,13 +404,13 @@ Example use case scenario::
 
     CurrentCostMonitorConfigFile = "/path/to/your/config/file"
 
-    
+
     class MyCurrentCostMonitor(txcurrentcost.monitor.Monitor):
         """
         Extends the txcurrentCost.monitor.Monitor by implementing periodic update
         handler to call a supplied data handler.
         """
- 
+
         def __init__(self, config_file, periodicUpdateDataHandler):
             super(MyCurrentCostMonitor, self).__init__(config_file)
             self.periodicUpdateDataHandler = periodicUpdateDataHandler
@@ -420,9 +420,9 @@ Example use case scenario::
                 if sensor_instance == txcurrentcost.Sensors.WholeHouseSensorId:
                     self.periodicUpdateDataHandler(timestamp, temperature, sensor_data)
 
-	
+
     class Monitor(object):
-    
+
         def __init__(self, config):
             self.temperature_datastream_id = "temperature"
             self.energy_datastream_id = "energy"
@@ -430,15 +430,15 @@ Example use case scenario::
             currentCostMonitorConfig = txcurrentcost.monitor.MonitorConfig(CurrentCostMonitorConfigFile)
             self.sensor = txcurrentcost.monior.Monitor(currentCostMonitorConfig,
                                                        self.handleCurrentCostPeriodicUpdateData)
-            
+
         def start(self):
             """ Start sensor """
             self.sensor.start()
-            
+
         def stop(self):
             """ Stop the sensor """
             self.sensor.stop()
-            
+
         def def handleCurrentCostPeriodicUpdateData(self, timestamp, temperature, watts_on_channels):
             """ Handle latest sensor periodic update """
 
@@ -458,10 +458,10 @@ Example use case scenario::
     if __name__ == "__main__":
         monitor = Monitor()
         reactor.callWhenRunning(monitor.start)
-        reactor.run()        
-        
-        
-        
+        reactor.run()
+
+
+
 Todo
 ----
 
@@ -471,3 +471,4 @@ Todo
   but it should implement everything the standard client supports.
 
 
+[![Analytics](https://ga-beacon.appspot.com/UA-29867375-2/txPachube/readme?pixel)](https://github.com/claws/txPachube)
